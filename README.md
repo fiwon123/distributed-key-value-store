@@ -72,12 +72,27 @@ committed value from the newly elected leader.
 
 ## Development
 
+The docker compose **dev sandbox** gives you the full toolchain (Go, `gh`,
+`air` fast reload) with your host GitHub config mounted read-only and
+`GH_TOKEN`/`GITHUB_TOKEN` forwarded at runtime — never baked into the image.
+
+```bash
+make dev-up        # build + start the sandbox (needs docker on the host)
+make dev-restart   # restart after Dockerfile/deps changes
+make shell         # shell inside the sandbox
+make opencode      # run opencode inside the sandbox
+make dev-down      # stop and remove the sandbox
+make dev-log       # follow container logs
+```
+
+Direct toolchain (host or inside the sandbox):
+
 ```bash
 go build ./...       # build
 go test ./...        # test
 go vet ./...         # static analysis
 gofmt -l .           # formatting (empty output = clean)
-make check           # all of the above
+make check           # all of the above (Go steps skip until go.mod exists)
 ```
 
 The project follows an issue-first, branch-based workflow — see
