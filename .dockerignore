@@ -1,0 +1,13 @@
+.git
+.opencode/memory
+.go
+.xdg-data
+.xdg-cache
+.xdg-state
+tmp
+air.log
+kvnode
+*.log
+*.test
+*.out
+coverage.*
