@@ -53,6 +53,11 @@ distributed-key-value-store/
 ├── internal/httpapi/    # HTTP handlers for /v1/kv/{key} and /v1/status
 ├── internal/raft/       # hand-rolled Raft (roles, elections, replication)
 ├── internal/kv/         # in-memory state machine
+├── scripts/             # dev-sandbox helper scripts (entrypoint, token resolution, …)
+├── Dockerfile           # dev sandbox image (Go + gh + air fast reload)
+├── docker-compose.yml   # single `dev` service for local development
+├── mise.toml            # toolchain pins (go, gh) — host + dev image
+├── .air.toml            # air fast-reload config (runs ./cmd/kvnode)
 ├── Makefile
 ├── opencode.json
 └── .github/workflows/ci.yml
@@ -79,37 +84,75 @@ CI enforces. Prefer it over listing commands separately: agents follow whatever
 `check` runs, so a check missing from it is a check nobody performs. Add new
 checks to the `Makefile`.
 
+> **Until `go.mod` exists, `make check` skips the Go toolchain steps** with an
+> explicit "SKIPPED (skipped is not passed)" message — a skipped run verifies
+> nothing, so scaffolding PRs are judged by review, not by `make`.
+
+### Dev sandbox
+
+The docker compose `dev` service is the development environment (gh + opencode
+pre-configured, `air` fast reload, no docker socket). Host-only tools are
+bootstrapped with `./scripts/setup-host-tools.sh` (installs mise, authenticates
+gh). Key targets:
+
+```bash
+make dev-up        # build + start the sandbox (requires docker on the host)
+make dev-restart   # restart the dev container after Dockerfile/deps changes
+make dev-shell     # shell inside the container (alias: make shell)
+make dev-opencode  # run opencode inside the container (alias: make opencode)
+make dev-log       # follow container logs
+make dev-down      # stop and remove the sandbox
+```
+
+`make dev-up` forwards `GH_TOKEN` or `GITHUB_TOKEN` (whichever is valid) into
+the container at runtime — values stay in the host environment, never in the
+image. Host `~/.config/gh`, `~/.config/opencode`, `~/.gitconfig`, and the
+`opencode` binary are mounted read-only. Go module/build caches live under
+`/workspace/.go`; opencode/gh runtime state under `/workspace/.xdg-*` (both
+gitignored).
+
 ## Runtime Environment
 
-The AI agent (opencode) runs at the repository root. No container is required
-for development; Docker Compose is planned only for running a multi-node cluster
-locally.
+The AI agent (opencode) runs at the repository root. For development, a docker
+compose **dev sandbox** provides the full toolchain (Go, `gh`, `air` fast
+reload) with host GitHub config mounted read-only — see Development Commands.
+The in-container agent has **no docker socket** (by design): it cannot manage
+containers, so the three-node cluster compose remains a later milestone.
 
-Install Go, GitHub CLI, and OpenCode as needed for your environment.
+Install Go, GitHub CLI, and OpenCode as needed for your environment; on a fresh
+host, `./scripts/setup-host-tools.sh` bootstraps mise + gh.
 
 ### What the agent CAN do
 
 - Run the Go toolchain (`go build`, `go test`, `go vet`, `gofmt`, `go run`)
 - Run git and GitHub CLI commands
 - Start local node processes
+- Start/use the dev sandbox from the host: `make dev-up`, `make dev-shell`, `make dev-opencode`
+- Run every script under `scripts/` (entrypoint, token resolution, sandbox bring-up)
 
 ### What the agent CANNOT do
 
-- Run `docker` or `docker compose` commands in this environment
-- Access the Docker socket
+- Run `docker` or `docker compose` commands in this environment (no docker on the host here)
+- Access the Docker socket — including inside the dev sandbox, which mounts none by design
 - Modify the host filesystem beyond the workspace
 
 ## Environment Variables
 
-None defined yet. This project currently reads configuration from command-line
-flags (node id, listen address, peer list) rather than a secret environment file.
-If a `.env` or `.env.*` file is introduced later, it is gitignored and the
-secret-file rules below apply.
+- `GH_TOKEN` / `GITHUB_TOKEN` — GitHub credentials, read from the host and
+  forwarded into the dev sandbox at runtime. Either name works; neither is
+  defined here, and values are never baked into the image.
+- `HOST_HOME` — optional override for the host home directory used by the
+  read-only config mounts (defaults to `$HOME`).
+- This project reads node configuration from command-line flags (node id,
+  listen address, peer list) rather than a secret environment file. If a `.env`
+  or `.env.*` file is introduced later, it is gitignored and the secret-file
+  rules below apply.
 
 ## Key Conventions
 
 - **Assignee**: `fiwon123` — `workflow.md` tells agents to read `ASSIGNEE` from here before assigning issues and PRs
-- **GitHub credentials**: `GH_TOKEN` or `GITHUB_TOKEN` — either name works. Do not set either here: values belong in the host environment.
+- **GitHub credentials**: `GH_TOKEN` or `GITHUB_TOKEN` — either name works. Do not set either here: values belong in the host environment, and the dev sandbox forwards whichever is valid at runtime.
+- **Dev sandbox**: docker compose `dev` service (gh + opencode pre-configured, no docker socket); `make dev-up` / `dev-restart` / `dev-shell` / `dev-opencode` / `dev-down`
 - **Model assignments**: an example, not a recommendation — `opencode.json` assigns `opencode/big-pickle` to `build` and `opencode/mimo-v2.6-flash-free` to `plan`. Change them to whatever your install offers; no prompt depends on which model an agent runs. Verify an id with `opencode models` first.
 - Linting / formatting: `gofmt` for all Go code; `go vet` for static analysis
 - Testing: the standard `testing` package (`go test ./...`) for all packages

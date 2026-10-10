@@ -18,7 +18,7 @@ Users should be able to run a small cluster (3 nodes by default) and perform key
 - **Backend**: Go (net/http or TCP API)
 - **Consensus**: Hand-rolled Raft (educational, not production-ready)
 - **Persistence**: Raft log (file-based) with snapshots planned
-- **Containerization**: Docker Compose (for running 3-node local cluster)
+- **Containerization**: Docker Compose (dev sandbox now; 3-node cluster later)
 - **Testing**: go test (unit tests; failure/chaos tests later)
 
 ## Architecture
@@ -91,6 +91,11 @@ go build ./...
 go vet ./...
 go test ./...
 go run ./cmd/kvnode
+make check          # local gate (Go steps skip until go.mod exists)
+make dev-up         # start the dev sandbox (docker compose)
+make dev-shell      # shell inside the sandbox (alias: make shell)
+make dev-opencode   # run opencode inside the sandbox (alias: make opencode)
+make dev-down       # stop the sandbox
 ```
 
 ## Notes
