@@ -3,10 +3,15 @@
 # Dev sandbox image — distributed-key-value-store.
 # Go toolchain comes from the base image; `air` is installed for fast reload.
 # GitHub CLI is pinned to the same version as mise.toml.
-ARG GH_CLI_VERSION=v2.101.0
-ARG TARGETARCH
 
 FROM golang:1.26-bookworm
+
+# Build-time ARGs are declared here, AFTER the first FROM. An ARG declared
+# before FROM is in scope only for the FROM lines themselves — every
+# instruction after FROM sees it empty, so a download URL built from an unset
+# version 404s at build time in a way no linter catches.
+ARG GH_CLI_VERSION=v2.102.0
+ARG TARGETARCH
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
@@ -26,10 +31,11 @@ RUN if [ -z "$TARGETARCH" ]; then \
     && curl -fsSL "https://github.com/cli/cli/releases/download/${GH_CLI_VERSION}/gh_${GH_CLI_VERSION#v}_linux_${TARGETARCH}.tar.gz" -o /tmp/gh.tar.gz \
     && tar -xzf /tmp/gh.tar.gz -C /tmp \
     && mv "/tmp/gh_${GH_CLI_VERSION#v}_linux_${TARGETARCH}/bin/gh" /usr/local/bin/gh \
-    && rm -rf /tmp/gh.tar.gz "/tmp/gh_${GH_CLI_VERSION#v}_linux_${TARGETARCH}"
+    && rm -rf /tmp/gh.tar.gz "/tmp/gh_${GH_CLI_VERSION#v}_linux_${TARGETARCH}" \
+    && gh --version
 
 # Fast reload for the Go dev loop.
-RUN go install github.com/air-verse/air@v1.61.5
+RUN go install github.com/air-verse/air@v1.67.4
 
 # --- dev-sandbox rc (badge + terminal title) ---
 COPY scripts/dev-sandbox-rc.sh /etc/profile.d/00-dev-sandbox.sh

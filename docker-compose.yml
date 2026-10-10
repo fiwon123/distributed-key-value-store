@@ -7,8 +7,6 @@
 #   can write them (GOPATH/GOCACHE default to root-owned /go).
 # - opencode/gh runtime state goes under /workspace/.xdg-* (writable), while
 #   config stays read-only at .../.config/{opencode,gh}.
-version: "3.9"
-
 name: distributed-key-value-store
 
 services:
