@@ -100,7 +100,7 @@ func TestHandleAppendEntriesCommitsAndApplies(t *testing.T) {
 	if !reply.Success {
 		t.Fatalf("reply = %+v, want success", reply)
 	}
-	snap := n.Snapshot()
+	snap := n.Status()
 	if snap.CommitIndex != 1 || snap.LastApplied != 1 {
 		t.Fatalf("commit=%d applied=%d, want 1/1", snap.CommitIndex, snap.LastApplied)
 	}
@@ -176,7 +176,7 @@ func TestProposeReplicatesAndCommits(t *testing.T) {
 		}
 	}
 	for id, n := range nodes {
-		snap := n.Snapshot()
+		snap := n.Status()
 		if snap.CommitIndex != 1 || snap.LastApplied != 1 {
 			t.Fatalf("%s: commit=%d applied=%d, want 1/1", id, snap.CommitIndex, snap.LastApplied)
 		}
@@ -232,7 +232,7 @@ func TestSingleNodeClusterCommits(t *testing.T) {
 	if err := n.Propose([]byte("x")); err != nil {
 		t.Fatalf("Propose on single-node cluster: %v", err)
 	}
-	snap := n.Snapshot()
+	snap := n.Status()
 	if snap.CommitIndex != 1 || snap.LastApplied != 1 {
 		t.Fatalf("commit=%d applied=%d, want 1/1", snap.CommitIndex, snap.LastApplied)
 	}

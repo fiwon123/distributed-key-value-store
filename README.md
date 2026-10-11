@@ -27,15 +27,17 @@ Once built, you can run a small cluster (three nodes by default) and:
 ## Status
 
 **MVP complete.** Single-node KV, Raft leader election, log replication and
-commit, on-disk log persistence with restart recovery, in-process leader-failure
-tests, the cluster dashboard, and a runnable 3-node cluster (local processes or
-Docker Compose). Remaining: log compaction/snapshots.
+commit, on-disk log persistence with restart recovery, automatic snapshots and
+log compaction, in-process leader-failure tests, the cluster dashboard, and a
+runnable 3-node cluster (local processes or Docker Compose). Remaining: the
+`InstallSnapshot` RPC, so a leader can catch up a follower that has fallen
+behind the compacted boundary.
 
 ## Stack
 
 - **Language**: Go (standard toolchain)
 - **Consensus**: hand-rolled Raft (educational)
-- **Persistence**: Raft log on disk; snapshots planned
+- **Persistence**: Raft log and state-machine snapshots on disk (log compaction)
 - **Dashboard**: React + Vite + TypeScript, embedded in the node binary
 - **Cluster**: 3 nodes via local processes or Docker Compose
 - **Testing**: standard `testing` package (`go test`); Vitest for the dashboard
@@ -134,7 +136,10 @@ survivor takes over.
 - **Leader reads (MVP)** — reads go to the leader to avoid stale reads early on.
 - **Quorum loss stops writes** — a leader that cannot reach a majority rejects
   writes rather than best-effort accepting them.
-- **Snapshots last** — log compaction only after basic persistence works.
+- **Automatic snapshots** — once a configurable number of entries (1000 by
+  default) has been applied past the last snapshot, the state machine is
+  snapshotted and the log prefix dropped, so the log does not grow without
+  bound and restarts replay only the tail.
 
 ## Build order
 
