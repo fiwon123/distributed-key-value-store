@@ -46,9 +46,8 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          # Pin a version here once `go.mod` exists (e.g. `go-version-file: go.mod`)
-          # so CI and local development agree on the toolchain.
-          go-version: "stable"
+          # Pin via go.mod so CI and local development agree on the toolchain.
+          go-version-file: go.mod
           cache: true
 
       - name: Check formatting
