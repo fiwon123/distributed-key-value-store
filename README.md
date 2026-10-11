@@ -26,9 +26,9 @@ Once built, you can run a small cluster (three nodes by default) and:
 
 ## Status
 
-**Repository setup only — no implementation yet.** The working tree contains the
-project's workflow, agent configuration, CI, and project context. Code lands in
-the build order below.
+**MVP in progress.** Build Order step 1 (single-node HTTP + in-memory store) is
+implemented. Raft elections, replication, persistence, and failure tests land in
+subsequent steps.
 
 ## Stack
 
@@ -38,14 +38,26 @@ the build order below.
 - **Cluster**: Docker Compose (three local nodes) — planned
 - **Testing**: standard `testing` package (`go test`)
 
-## API (planned)
+## API
 
 | Method | Path | Purpose |
 |---|---|---|
-| `PUT` | `/v1/kv/{key}` | Set `key` to a value |
+| `PUT` | `/v1/kv/{key}` | Set `key` to a value (raw body, or JSON `{"value":"..."}`) |
 | `GET` | `/v1/kv/{key}` | Read a value (404 if absent) |
-| `DELETE` | `/v1/kv/{key}` | Delete a key |
+| `DELETE` | `/v1/kv/{key}` | Delete a key (204, or 404 if absent) |
 | `GET` | `/v1/status` | Node role, term, leader, commit index, last applied |
+
+## Run a single node
+
+```bash
+go run ./cmd/kvnode -id node1 -http :8080
+
+# in another shell
+curl -i -X PUT --data-binary 'hello' http://localhost:8080/v1/kv/greeting
+curl -i http://localhost:8080/v1/kv/greeting
+curl -i -X DELETE http://localhost:8080/v1/kv/greeting
+curl -i http://localhost:8080/v1/status
+```
 
 ## Design choices
 
@@ -92,7 +104,7 @@ go build ./...       # build
 go test ./...        # test
 go vet ./...         # static analysis
 gofmt -l .           # formatting (empty output = clean)
-make check           # all of the above (Go steps skip until go.mod exists)
+make check           # all of the above
 ```
 
 The project follows an issue-first, branch-based workflow — see
