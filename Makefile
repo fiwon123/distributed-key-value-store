@@ -10,6 +10,7 @@ WEB_DIR ?= web
 
 .PHONY: help check fmt vet test test-integration build run clean \
         web-install web-build web-dev web-lint web-test web-check \
+        cluster-smoke cluster-up cluster-down cluster-logs \
         preflight dev-up dev-down dev-restart dev-log dev-build reset \
         shell opencode opencode-auto dev-shell dev-opencode dev-opencode-auto
 
@@ -87,6 +88,24 @@ web-check:
 	@$(MAKE) web-install
 	cd $(WEB_DIR) && $(NPM) run lint && $(NPM) run format:check \
 	  && $(NPM) test && $(NPM) run build
+
+# --- 3-node cluster ------------------------------------------------------------
+# cluster-smoke needs only Go + curl (no docker) and runs the Done-when check:
+# write, kill the leader, read the committed value from the new leader.
+# cluster-* uses deploy/docker-compose.yml.
+
+## cluster-smoke: run the 3-node Done-when check with local processes
+cluster-smoke:
+	scripts/cluster-smoke.sh
+
+cluster-up: ## Build and start the 3-node cluster (needs docker)
+	docker compose -f deploy/docker-compose.yml up -d --build
+
+cluster-down: ## Stop the 3-node cluster
+	docker compose -f deploy/docker-compose.yml down
+
+cluster-logs: ## Follow the 3-node cluster logs
+	docker compose -f deploy/docker-compose.yml logs -f
 
 run:
 	$(GO) run ./cmd/kvnode

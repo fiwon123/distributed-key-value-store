@@ -56,7 +56,8 @@ distributed-key-value-store/
 ├── internal/kv/         # in-memory state machine
 ├── internal/webui/      # dashboard: embedded SPA, /cluster, /node/{id}/ proxy
 ├── web/                 # React + Vite + TS dashboard source
-├── scripts/             # dev-sandbox helper scripts (entrypoint, token resolution, …)
+├── deploy/              # 3-node cluster: Dockerfile + docker-compose.yml
+├── scripts/             # dev-sandbox + cluster-smoke helper scripts
 ├── Dockerfile           # dev sandbox image (Go + gh + air + node)
 ├── docker-compose.yml   # single `dev` service for local development
 ├── mise.toml            # toolchain pins (go, gh, node) — host + dev image
@@ -109,6 +110,14 @@ Multi-node failure tests are opt-in behind the `integration` build tag and are
 The frontend is optional to build: the node embeds
 `internal/webui/dist/placeholder.html` (committed), so a plain `go build ./...`
 works without Node. Run `make web-build` to embed the real dashboard.
+
+### 3-node cluster
+
+`make cluster-smoke` runs three local processes (`scripts/cluster-smoke.sh`,
+Go + curl only) and checks the Done-when: write a key, kill the leader, read the
+committed value from the new leader. `make cluster-up` / `cluster-down` manage
+the containerized cluster in `deploy/docker-compose.yml` (requires docker). The
+docker path cannot be exercised from this environment — no docker socket.
 
 ### Dev sandbox
 
