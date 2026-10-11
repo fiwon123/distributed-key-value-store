@@ -1,10 +1,9 @@
 // Package raft implements a minimal, educational Raft consensus layer.
 //
-// Phase 2 covers leader election: roles (Follower/Candidate/Leader),
-// randomized election timeouts, the RequestVote rules, and AppendEntries
-// heartbeats. Log entries, commit/apply, and persistence arrive in later
-// phases. The implementation follows the Raft paper's §5.1–5.2 closely but is
-// deliberately simple — clarity over cleverness, and not production-ready.
+// It covers leader election (§5.2), log replication, commit, and applying
+// committed entries to a state machine (§5.3–5.4). Persistence and snapshots
+// are the next phases. The implementation is deliberately simple — clarity over
+// cleverness, and not production-ready.
 package raft
 
 // RequestVoteArgs is the RPC a candidate sends to request a vote (§5.2).

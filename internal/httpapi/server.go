@@ -22,11 +22,11 @@ import (
 
 // Backend is the read/write interface the HTTP API drives.
 //
-// Put and Delete return an error when the write cannot be accepted. A later
-// phase returns ErrUnavailable here when the node is not the leader or has lost
-// quorum.
+// Put, Delete, and Get return an error when the operation cannot be served. A
+// non-leader node returns ErrUnavailable, which the API maps to 503 with the
+// current leader in the X-Raft-Leader header (empty if unknown).
 type Backend interface {
-	Get(key string) (string, bool)
+	Get(key string) (string, bool, error)
 	Put(key, value string) error
 	Delete(key string) (bool, error)
 }
@@ -94,7 +94,7 @@ func (s *Server) handlePut(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := s.backend.Put(key, value); err != nil {
-		writeBackendError(w, err)
+		s.writeBackendError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, keyValue{Key: key, Value: value})
@@ -102,7 +102,11 @@ func (s *Server) handlePut(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleGet(w http.ResponseWriter, r *http.Request) {
 	key := r.PathValue("key")
-	value, ok := s.backend.Get(key)
+	value, ok, err := s.backend.Get(key)
+	if err != nil {
+		s.writeBackendError(w, err)
+		return
+	}
 	if !ok {
 		writeError(w, http.StatusNotFound, "key not found")
 		return
@@ -114,7 +118,7 @@ func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request) {
 	key := r.PathValue("key")
 	deleted, err := s.backend.Delete(key)
 	if err != nil {
-		writeBackendError(w, err)
+		s.writeBackendError(w, err)
 		return
 	}
 	if !deleted {
@@ -156,8 +160,14 @@ func readValue(r *http.Request) (string, error) {
 	return string(body), nil
 }
 
-func writeBackendError(w http.ResponseWriter, err error) {
+// writeBackendError maps a backend error to a response. Unavailable (e.g. this
+// node is not the leader) becomes 503 with the known leader in X-Raft-Leader so
+// clients can retry against it.
+func (s *Server) writeBackendError(w http.ResponseWriter, err error) {
 	if errors.Is(err, ErrUnavailable) {
+		if leader := s.status.Status().Leader; leader != "" {
+			w.Header().Set("X-Raft-Leader", leader)
+		}
 		writeError(w, http.StatusServiceUnavailable, "write unavailable")
 		return
 	}

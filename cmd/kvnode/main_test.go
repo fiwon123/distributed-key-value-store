@@ -1,8 +1,10 @@
 package main
 
 import (
+	"errors"
 	"testing"
 
+	"github.com/fiwon123/distributed-key-value-store/internal/httpapi"
 	"github.com/fiwon123/distributed-key-value-store/internal/kv"
 	"github.com/fiwon123/distributed-key-value-store/internal/raft"
 )
@@ -71,22 +73,17 @@ func TestRaftNodeConfigHasTimings(t *testing.T) {
 	}
 }
 
-func TestDirectBackend(t *testing.T) {
-	b := directBackend{store: kv.New()}
-	if _, ok := b.Get("k"); ok {
-		t.Fatal("Get on empty backend reported present")
+func TestRaftBackendNotLeader(t *testing.T) {
+	// A node that is not the leader must reject client operations as
+	// unavailable (see httpapi.ErrUnavailable → 503).
+	backend := &raftBackend{store: kv.New(), node: raft.NewNode(raft.DefaultConfig(), nil)}
+	if _, _, err := backend.Get("k"); !errors.Is(err, httpapi.ErrUnavailable) {
+		t.Fatalf("Get error = %v, want ErrUnavailable", err)
 	}
-	if err := b.Put("k", "v"); err != nil {
-		t.Fatalf("Put: %v", err)
+	if err := backend.Put("k", "v"); !errors.Is(err, httpapi.ErrUnavailable) {
+		t.Fatalf("Put error = %v, want ErrUnavailable", err)
 	}
-	if got, ok := b.Get("k"); !ok || got != "v" {
-		t.Fatalf("Get = %q, %v; want v, true", got, ok)
-	}
-	deleted, err := b.Delete("k")
-	if err != nil || !deleted {
-		t.Fatalf("Delete = %v, %v; want true, nil", deleted, err)
-	}
-	if _, ok := b.Get("k"); ok {
-		t.Fatal("key still present after delete")
+	if _, err := backend.Delete("k"); !errors.Is(err, httpapi.ErrUnavailable) {
+		t.Fatalf("Delete error = %v, want ErrUnavailable", err)
 	}
 }
