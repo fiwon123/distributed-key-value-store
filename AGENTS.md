@@ -20,7 +20,7 @@ Users should be able to run a small cluster (3 nodes by default) and perform key
 
 - Language: Go (standard toolchain)
 - Consensus: hand-rolled Raft (educational — not production-ready)
-- Persistence: Raft log on disk; snapshots planned
+- Persistence: Raft log on disk; automatic snapshots + log compaction
 - HTTP API: `net/http` (`PUT/GET/DELETE /v1/kv/{key}`, `GET /v1/status`), with an OpenAPI contract at `GET /v1/openapi.json` and Swagger UI at `GET /docs`
 - Dashboard: React + Vite + TypeScript (`web/`), embedded via `internal/webui`
 - Orchestration: Docker Compose (3-node local cluster)
@@ -37,7 +37,7 @@ State machine (in-memory KV map, applied from committed log entries)
   ↓
 Raft (leader election, log replication, commit/index, heartbeats)
   ↓
-Persistent log (disk) + snapshots (later)
+Persistent log (disk) + snapshots (compacted log)
   ↕
 Peer-to-peer RPC between nodes
 ```

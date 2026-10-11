@@ -2,6 +2,7 @@ package raft
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
@@ -20,8 +21,9 @@ type HardState struct {
 // Storage persists a node's durable state. It is not goroutine-safe; the
 // enclosing Node serialises access with its own lock.
 //
-// Index 0 is a sentinel and is never persisted. Entries are addressed by their
-// Index field, which always equals their position in the log.
+// The sentinel entry at index 0 is never persisted; entries are addressed by
+// their Index field. After compaction the log holds only entries above the
+// snapshot boundary.
 type Storage interface {
 	// SaveHardState durably records currentTerm and votedFor.
 	SaveHardState(state HardState) error
@@ -29,6 +31,14 @@ type Storage interface {
 	AppendEntries(entries []LogEntry) error
 	// TruncateFrom removes every persisted entry with Index >= index.
 	TruncateFrom(index uint64) error
+	// CompactTo removes every persisted entry with Index <= index: they have
+	// been captured in the snapshot at that index.
+	CompactTo(index uint64) error
+	// SaveSnapshot durably stores the snapshot metadata and state-machine image.
+	SaveSnapshot(meta SnapshotMeta, data []byte) error
+	// LoadSnapshot returns the most recent snapshot. A zero meta and nil data
+	// mean no snapshot has been persisted yet.
+	LoadSnapshot() (SnapshotMeta, []byte, error)
 	// Load returns the persisted hard state and log entries (excluding the
 	// sentinel), or zero values if nothing has been persisted yet.
 	Load() (HardState, []LogEntry, error)
@@ -41,16 +51,18 @@ type FileStorage struct {
 }
 
 const (
-	stateFileName = "state.json"
-	logFileName   = "log"
+	stateFileName    = "state.json"
+	logFileName      = "log"
+	snapshotFileName = "snapshot"
 )
 
 // NewFileStorage returns a FileStorage rooted at dir. The directory is created
 // on first write.
 func NewFileStorage(dir string) *FileStorage { return &FileStorage{dir: dir} }
 
-func (f *FileStorage) statePath() string { return filepath.Join(f.dir, stateFileName) }
-func (f *FileStorage) logPath() string   { return filepath.Join(f.dir, logFileName) }
+func (f *FileStorage) statePath() string    { return filepath.Join(f.dir, stateFileName) }
+func (f *FileStorage) logPath() string      { return filepath.Join(f.dir, logFileName) }
+func (f *FileStorage) snapshotPath() string { return filepath.Join(f.dir, snapshotFileName) }
 
 // SaveHardState writes term/votedFor atomically: temp file, fsync, rename over
 // state.json.
@@ -110,6 +122,67 @@ func (f *FileStorage) TruncateFrom(index uint64) error {
 		}
 	}
 	return f.rewriteLog(kept)
+}
+
+// CompactTo rewrites the log keeping only entries whose Index > index.
+func (f *FileStorage) CompactTo(index uint64) error {
+	entries, err := f.loadLog()
+	if err != nil {
+		return err
+	}
+	var kept []LogEntry
+	for _, entry := range entries {
+		if entry.Index > index {
+			kept = append(kept, entry)
+		}
+	}
+	return f.rewriteLog(kept)
+}
+
+// SaveSnapshot atomically replaces the snapshot file. Metadata and the state
+// image live in one file (4-byte meta length, meta JSON, then raw data), so a
+// crash never leaves a meta pointing at a mismatched image.
+func (f *FileStorage) SaveSnapshot(meta SnapshotMeta, data []byte) error {
+	if err := os.MkdirAll(f.dir, 0o755); err != nil {
+		return fmt.Errorf("raft: create data dir: %w", err)
+	}
+	metaPayload, err := json.Marshal(meta)
+	if err != nil {
+		return fmt.Errorf("raft: encode snapshot meta: %w", err)
+	}
+	var buf bytes.Buffer
+	var header [4]byte
+	binary.BigEndian.PutUint32(header[:], uint32(len(metaPayload)))
+	buf.Write(header[:])
+	buf.Write(metaPayload)
+	buf.Write(data)
+	if err := writeFileAtomic(f.snapshotPath(), buf.Bytes()); err != nil {
+		return fmt.Errorf("raft: save snapshot: %w", err)
+	}
+	return nil
+}
+
+// LoadSnapshot reads the persisted snapshot. No snapshot is not an error.
+func (f *FileStorage) LoadSnapshot() (SnapshotMeta, []byte, error) {
+	payload, err := os.ReadFile(f.snapshotPath())
+	if os.IsNotExist(err) {
+		return SnapshotMeta{}, nil, nil
+	}
+	if err != nil {
+		return SnapshotMeta{}, nil, fmt.Errorf("raft: read snapshot: %w", err)
+	}
+	if len(payload) < 4 {
+		return SnapshotMeta{}, nil, fmt.Errorf("raft: snapshot file truncated")
+	}
+	metaLen := binary.BigEndian.Uint32(payload[:4])
+	if int(metaLen) > len(payload)-4 {
+		return SnapshotMeta{}, nil, fmt.Errorf("raft: snapshot meta length out of range")
+	}
+	var meta SnapshotMeta
+	if err := json.Unmarshal(payload[4:4+metaLen], &meta); err != nil {
+		return SnapshotMeta{}, nil, fmt.Errorf("raft: decode snapshot meta: %w", err)
+	}
+	return meta, append([]byte(nil), payload[4+metaLen:]...), nil
 }
 
 // Load reads the hard state and log. A missing file is not an error.

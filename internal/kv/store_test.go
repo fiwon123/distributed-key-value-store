@@ -84,6 +84,54 @@ func TestStoreDelete(t *testing.T) {
 	}
 }
 
+func TestStoreSnapshotRestoreRoundTrip(t *testing.T) {
+	s := New()
+	s.Put("a", "1")
+	s.Put("b", "2")
+
+	data, err := s.Snapshot()
+	if err != nil {
+		t.Fatalf("Snapshot: %v", err)
+	}
+
+	restored := New()
+	if err := restored.Restore(data); err != nil {
+		t.Fatalf("Restore: %v", err)
+	}
+	for _, key := range []string{"a", "b"} {
+		want, _ := s.Get(key)
+		got, ok := restored.Get(key)
+		if !ok || got != want {
+			t.Fatalf("restored.Get(%q) = %q, %v; want %q, true", key, got, ok, want)
+		}
+	}
+	if n := restored.Len(); n != 2 {
+		t.Fatalf("restored Len = %d, want 2", n)
+	}
+}
+
+func TestStoreRestoreReplacesContents(t *testing.T) {
+	s := New()
+	s.Put("old", "value")
+
+	data, err := New().Snapshot() // an empty snapshot
+	if err != nil {
+		t.Fatalf("Snapshot: %v", err)
+	}
+	if err := s.Restore(data); err != nil {
+		t.Fatalf("Restore: %v", err)
+	}
+	if n := s.Len(); n != 0 {
+		t.Fatalf("Len after restoring empty snapshot = %d, want 0", n)
+	}
+}
+
+func TestStoreRestoreRejectsGarbage(t *testing.T) {
+	if err := New().Restore([]byte("not json")); err == nil {
+		t.Fatal("Restore of garbage data should fail")
+	}
+}
+
 func TestStoreConcurrentAccess(t *testing.T) {
 	s := New()
 	const workers = 8

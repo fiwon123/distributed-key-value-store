@@ -100,7 +100,7 @@ func TestRequestVoteGrantedFreshTerm(t *testing.T) {
 	if !reply.VoteGranted {
 		t.Fatal("vote should be granted: no vote cast yet this term")
 	}
-	if term := n.Snapshot().Term; term != 1 {
+	if term := n.Status().Term; term != 1 {
 		t.Fatalf("term = %d, want 1", term)
 	}
 }
@@ -141,7 +141,7 @@ func TestRequestVoteStepsDownOnHigherTerm(t *testing.T) {
 	if !reply.VoteGranted {
 		t.Fatal("higher-term candidate must be granted the vote")
 	}
-	snap := n.Snapshot()
+	snap := n.Status()
 	if snap.Role != "follower" || snap.Term != 4 {
 		t.Fatalf("snapshot = %+v, want follower term 4", snap)
 	}
@@ -158,7 +158,7 @@ func TestRunElectionWinsWithMajority(t *testing.T) {
 
 	n.runElection()
 
-	snap := n.Snapshot()
+	snap := n.Status()
 	if snap.Role != "leader" {
 		t.Fatalf("role = %s, want leader", snap.Role)
 	}
@@ -181,7 +181,7 @@ func TestRunElectionLosesWithoutMajority(t *testing.T) {
 
 	n.runElection()
 
-	snap := n.Snapshot()
+	snap := n.Status()
 	if snap.Role != "candidate" {
 		t.Fatalf("role = %s, want candidate (lost the round)", snap.Role)
 	}
@@ -201,7 +201,7 @@ func TestElectionStepsDownOnHigherTermReply(t *testing.T) {
 
 	n.runElection()
 
-	snap := n.Snapshot()
+	snap := n.Status()
 	if snap.Role != "follower" {
 		t.Fatalf("role = %s, want follower after seeing term 9", snap.Role)
 	}
@@ -222,7 +222,7 @@ func TestAppendEntriesHeartbeatResetsTimer(t *testing.T) {
 	if !reply.Success {
 		t.Fatal("heartbeat with higher term should succeed")
 	}
-	snap := n.Snapshot()
+	snap := n.Status()
 	if snap.Role != "follower" || snap.Leader != "node2" || snap.Term != 2 {
 		t.Fatalf("snapshot = %+v, want follower, leader node2, term 2", snap)
 	}
@@ -262,7 +262,7 @@ func TestLeaderStepsDownOnHigherTermHeartbeatReply(t *testing.T) {
 	n.replicateAll()
 
 	waitFor(t, time.Second, func() bool {
-		snap := n.Snapshot()
+		snap := n.Status()
 		return snap.Role == "follower" && snap.Term == 7
 	})
 }
@@ -273,9 +273,9 @@ func TestSingleNodeBecomesLeader(t *testing.T) {
 	defer n.Stop()
 
 	waitFor(t, 2*time.Second, func() bool {
-		return n.Snapshot().Role == "leader"
+		return n.Status().Role == "leader"
 	})
-	snap := n.Snapshot()
+	snap := n.Status()
 	if snap.Leader != "node1" {
 		t.Fatalf("leader = %s, want node1 (quorum of one)", snap.Leader)
 	}
@@ -310,9 +310,9 @@ func TestThreeNodeClusterElectsLeader(t *testing.T) {
 	// Eventually exactly one node is leader and every follower knows it.
 	waitFor(t, 5*time.Second, func() bool {
 		var leaders []string
-		snaps := make(map[string]Snapshot)
+		snaps := make(map[string]Status)
 		for _, n := range nodes {
-			snaps[n.id] = n.Snapshot()
+			snaps[n.id] = n.Status()
 			if snaps[n.id].Role == "leader" {
 				leaders = append(leaders, n.id)
 			}

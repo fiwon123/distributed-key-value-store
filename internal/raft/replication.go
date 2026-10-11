@@ -25,17 +25,26 @@ func (n *Node) HandleAppendEntries(args AppendEntriesArgs) AppendEntriesReply {
 	if args.PrevLogIndex > n.lastLogIndex() {
 		return AppendEntriesReply{Term: n.term, Success: false}
 	}
-	if args.PrevLogIndex > 0 && n.log[args.PrevLogIndex].Term != args.PrevLogTerm {
+	if args.PrevLogIndex > 0 {
+		prev, ok := n.entryAt(args.PrevLogIndex)
+		if !ok || prev.Term != args.PrevLogTerm {
+			return AppendEntriesReply{Term: n.term, Success: false}
+		}
+	}
+	// Entries at or below our snapshot boundary are already captured; storing
+	// them again (or a gap beneath them) would corrupt the log. Reject so the
+	// leader backs off until InstallSnapshot can catch us up.
+	if len(args.Entries) > 0 && args.Entries[0].Index <= n.lastIncludedIndex {
 		return AppendEntriesReply{Term: n.term, Success: false}
 	}
 
 	// Append entries, truncating a conflicting tail on the first mismatch.
 	for i, entry := range args.Entries {
-		if entry.Index <= n.lastLogIndex() {
-			if n.log[entry.Index].Term == entry.Term {
+		if existing, ok := n.entryAt(entry.Index); ok {
+			if existing.Term == entry.Term {
 				continue // already have this entry
 			}
-			n.log = n.log[:entry.Index] // drop the divergent suffix
+			n.log = n.log[:entry.Index-n.logStart] // drop the divergent suffix
 			n.persistTruncateLocked(entry.Index)
 		}
 		n.log = append(n.log, args.Entries[i:]...)
@@ -83,14 +92,20 @@ func (n *Node) replicateAll() {
 		if next < 1 {
 			next = 1
 		}
+		if next <= n.logStart {
+			// The peer needs entries we already compacted into a snapshot; we
+			// cannot reconstruct them here. It stays behind until InstallSnapshot
+			// exists (follow-up issue).
+			continue
+		}
 		prevIndex := next - 1
 		var prevTerm uint64
-		if prevIndex > 0 && prevIndex <= lastIndex {
-			prevTerm = n.log[prevIndex].Term
+		if prev, ok := n.entryAt(prevIndex); ok {
+			prevTerm = prev.Term
 		}
 		var entries []LogEntry
 		if next <= lastIndex {
-			entries = append([]LogEntry(nil), n.log[next:]...)
+			entries = append([]LogEntry(nil), n.log[next-n.logStart:]...)
 		}
 		requests = append(requests, request{
 			index: i,

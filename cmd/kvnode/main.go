@@ -67,6 +67,10 @@ func run(cfg runConfig) error {
 		}
 		return store.Apply(cmd)
 	}
+	// Snapshots bound the log: once SnapshotThreshold entries are applied past
+	// the last snapshot, the store is captured and the log prefix compacted.
+	raftCfg.SnapshotFunc = store.Snapshot
+	raftCfg.RestoreFunc = store.Restore
 	if cfg.dataDir != "" {
 		raftCfg.Storage = raft.NewFileStorage(cfg.dataDir)
 	}
@@ -139,7 +143,7 @@ type raftBackend struct {
 }
 
 func (b *raftBackend) Get(key string) (string, bool, error) {
-	if b.node.Snapshot().Role != "leader" {
+	if b.node.Status().Role != "leader" {
 		return "", false, httpapi.ErrUnavailable
 	}
 	value, ok := b.store.Get(key)
@@ -187,7 +191,7 @@ type raftStatus struct {
 }
 
 func (s raftStatus) Status() httpapi.Status {
-	snap := s.node.Snapshot()
+	snap := s.node.Status()
 	return httpapi.Status{
 		ID:          s.id,
 		Role:        snap.Role,

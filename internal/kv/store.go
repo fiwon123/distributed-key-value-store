@@ -5,7 +5,11 @@
 // this package only holds the applied state.
 package kv
 
-import "sync"
+import (
+	"encoding/json"
+	"fmt"
+	"sync"
+)
 
 // Store is a concurrency-safe in-memory key-value map.
 type Store struct {
@@ -47,4 +51,30 @@ func (s *Store) Len() int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return len(s.m)
+}
+
+// Snapshot returns a JSON image of the store, suitable for a Raft snapshot and
+// for Restore to rebuild. The encoding is deterministic (Go sorts map keys).
+func (s *Store) Snapshot() ([]byte, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	data, err := json.Marshal(s.m)
+	if err != nil {
+		return nil, fmt.Errorf("kv: encode snapshot: %w", err)
+	}
+	return data, nil
+}
+
+// Restore replaces the store's contents with a snapshot produced by Snapshot.
+func (s *Store) Restore(data []byte) error {
+	contents := map[string]string{}
+	if len(data) > 0 {
+		if err := json.Unmarshal(data, &contents); err != nil {
+			return fmt.Errorf("kv: decode snapshot: %w", err)
+		}
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.m = contents
+	return nil
 }

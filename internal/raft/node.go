@@ -3,6 +3,7 @@ package raft
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"math/rand/v2"
 	"sync"
@@ -44,9 +45,9 @@ func (r Role) String() string {
 	}
 }
 
-// Snapshot is a point-in-time view of a node's cluster state, safe to hand to
+// Status is a point-in-time view of a node's cluster state, safe to hand to
 // status endpoints without holding the node's lock.
-type Snapshot struct {
+type Status struct {
 	Role        string
 	Term        uint64
 	Leader      string
@@ -73,8 +74,23 @@ type Config struct {
 	// entry's index and command bytes. It must be deterministic and idempotent.
 	ApplyFunc func(index uint64, data []byte) error
 
-	// Storage persists the log and hard state. When nil, the node keeps all
-	// state in memory (used by tests).
+	// SnapshotThreshold is the number of entries applied past the last snapshot
+	// after which the node snapshots the state machine and compacts the log.
+	// 0 disables automatic snapshots.
+	SnapshotThreshold uint64
+
+	// SnapshotFunc captures the state machine as bytes at the moment it is
+	// called (under the node lock, so the image matches the applied index).
+	// When nil, automatic snapshots are disabled.
+	SnapshotFunc func() ([]byte, error)
+
+	// RestoreFunc rebuilds the state machine from bytes produced by SnapshotFunc.
+	// It is called on startup when a snapshot is loaded, before the log tail is
+	// replayed. Required if a snapshot exists on disk.
+	RestoreFunc func(data []byte) error
+
+	// Storage persists the log, hard state, and snapshots. When nil, the node
+	// keeps all state in memory (used by tests).
 	Storage Storage
 }
 
@@ -86,6 +102,7 @@ func DefaultConfig() Config {
 		ElectionTimeoutMin: 300 * time.Millisecond,
 		ElectionTimeoutMax: 600 * time.Millisecond,
 		HeartbeatInterval:  100 * time.Millisecond,
+		SnapshotThreshold:  1000,
 	}
 }
 
@@ -98,22 +115,33 @@ func DefaultConfig() Config {
 type Node struct {
 	mu sync.Mutex
 
-	id        string
-	peers     []Peer
-	cfg       Config
-	transport Transport
-	applyFn   func(index uint64, data []byte) error
-	storage   Storage
+	id         string
+	peers      []Peer
+	cfg        Config
+	transport  Transport
+	applyFn    func(index uint64, data []byte) error
+	snapshotFn func() ([]byte, error)
+	restoreFn  func(data []byte) error
+	storage    Storage
 
 	role     Role
 	term     uint64
 	votedFor string
 	leaderID string
 
-	// log holds entries with a sentinel at index 0, so log[i].Index == i.
+	// log holds a sentinel entry at logStart followed by contiguous entries, so
+	// log[i].Index == logStart + uint64(i). logStart is 0 until the log is
+	// compacted, after which it equals the last snapshot's index. Use entryAt to
+	// read it.
 	log         []LogEntry
+	logStart    uint64
 	commitIndex uint64
 	lastApplied uint64
+
+	// lastIncludedIndex/Term identify the snapshot the log prefix was compacted
+	// into; entries at or below lastIncludedIndex are no longer in log.
+	lastIncludedIndex uint64
+	lastIncludedTerm  uint64
 
 	// Leader-only replication progress, parallel to peers.
 	nextIndex  []uint64
@@ -150,6 +178,8 @@ func Open(cfg Config, t Transport) (*Node, error) {
 		cfg:          cfg,
 		transport:    t,
 		applyFn:      cfg.ApplyFunc,
+		snapshotFn:   cfg.SnapshotFunc,
+		restoreFn:    cfg.RestoreFunc,
 		storage:      cfg.Storage,
 		role:         Follower,
 		log:          []LogEntry{{}}, // sentinel at index 0
@@ -163,13 +193,41 @@ func Open(cfg Config, t Transport) (*Node, error) {
 	if cfg.Storage == nil {
 		return n, nil
 	}
+
+	// A snapshot (if any) restores the state machine and moves the log's origin
+	// forward; the log tail on disk holds only entries after it.
+	meta, data, err := cfg.Storage.LoadSnapshot()
+	if err != nil {
+		return nil, err
+	}
+	if meta.Index > 0 {
+		if n.restoreFn == nil {
+			return nil, fmt.Errorf("raft %s: snapshot at index %d but no RestoreFunc", cfg.ID, meta.Index)
+		}
+		if err := n.restoreFn(data); err != nil {
+			return nil, fmt.Errorf("raft %s: restore snapshot: %w", cfg.ID, err)
+		}
+		n.lastIncludedIndex = meta.Index
+		n.lastIncludedTerm = meta.Term
+		n.logStart = meta.Index
+		n.log = []LogEntry{{Index: meta.Index, Term: meta.Term}}
+		n.commitIndex = meta.Index
+		n.lastApplied = meta.Index
+	}
+
 	hard, entries, err := cfg.Storage.Load()
 	if err != nil {
 		return nil, err
 	}
 	n.term = hard.Term
 	n.votedFor = hard.VotedFor
-	n.log = append(n.log, entries...)
+	for _, entry := range entries {
+		// Drop anything the snapshot already covers: a crash between saving the
+		// snapshot and truncating the log leaves such entries on disk.
+		if entry.Index > n.lastIncludedIndex {
+			n.log = append(n.log, entry)
+		}
+	}
 	return n, nil
 }
 
@@ -229,11 +287,11 @@ func (n *Node) Stop() {
 	}
 }
 
-// Snapshot returns a copy of the node's role/term/leader/commit/apply state.
-func (n *Node) Snapshot() Snapshot {
+// Status returns a copy of the node's role/term/leader/commit/apply state.
+func (n *Node) Status() Status {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	return Snapshot{
+	return Status{
 		Role:        n.role.String(),
 		Term:        n.term,
 		Leader:      n.leaderID,
