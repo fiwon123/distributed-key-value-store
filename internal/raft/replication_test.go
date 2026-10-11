@@ -65,8 +65,10 @@ func forceLeader(n *Node) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	n.term = 1
+	n.votedFor = n.id
 	n.role = Follower
 	n.becomeLeaderLocked()
+	n.persistHardStateLocked()
 }
 
 // remove makes a peer unreachable, as if its process had died.
@@ -220,5 +222,18 @@ func TestFollowerProposeReturnsNotLeader(t *testing.T) {
 	err := nodes["n2"].Propose([]byte("x"))
 	if !errors.Is(err, ErrNotLeader) {
 		t.Fatalf("Propose error = %v, want ErrNotLeader", err)
+	}
+}
+
+func TestSingleNodeClusterCommits(t *testing.T) {
+	n := NewNode(testConfig("n1", nil), &stubTransport{})
+	forceLeader(n)
+
+	if err := n.Propose([]byte("x")); err != nil {
+		t.Fatalf("Propose on single-node cluster: %v", err)
+	}
+	snap := n.Snapshot()
+	if snap.CommitIndex != 1 || snap.LastApplied != 1 {
+		t.Fatalf("commit=%d applied=%d, want 1/1", snap.CommitIndex, snap.LastApplied)
 	}
 }
