@@ -281,6 +281,49 @@
           "*/.env.*": "deny"
         }
       }
+    },
+    "frontend": {
+      "description": "Implements the React + Vite + TypeScript dashboard in web/ and its Go embedding",
+      "mode": "subagent",
+      "permission": {
+        "edit": {
+          "web/**": "allow",
+          "internal/webui/**": "allow"
+        },
+        "bash": {
+          "*": "ask",
+          "npm*": "allow",
+          "npx*": "allow",
+          "node*": "allow",
+          "make*": "allow",
+          "go build*": "allow",
+          "go test*": "allow",
+          "go vet*": "allow",
+          "gofmt*": "allow",
+          "printenv*": "deny",
+          "env": "deny",
+          "env *": "deny",
+          "docker compose config*": "deny",
+          "docker-compose config*": "deny",
+          "docker * config*": "deny",
+          "docker * env": "deny",
+          "docker * env *": "deny",
+          "docker inspect*": "deny",
+          "*.env": "deny",
+          "*.envrc": "deny",
+          "* .env": "deny",
+          "* .envrc": "deny",
+          "*/.env": "deny",
+          "*/.envrc": "deny",
+          "* .env*": "deny",
+          "*/.env*": "deny",
+          "* .envrc*": "deny",
+          "*/.envrc*": "deny",
+          "*.env.*": "deny",
+          "* .env.*": "deny",
+          "*/.env.*": "deny"
+        }
+      }
     }
   }
 }
