@@ -22,6 +22,7 @@ import (
 	"github.com/fiwon123/distributed-key-value-store/internal/httpapi"
 	"github.com/fiwon123/distributed-key-value-store/internal/kv"
 	"github.com/fiwon123/distributed-key-value-store/internal/raft"
+	"github.com/fiwon123/distributed-key-value-store/internal/webui"
 )
 
 func main() {
@@ -79,9 +80,15 @@ func run(cfg runConfig) error {
 	backend := &raftBackend{store: store, node: raftNode}
 	srv := httpapi.New(backend, raftStatus{id: cfg.id, peers: len(cfg.peers), node: raftNode})
 
+	web, err := webui.NewHandler(cfg.id, peerURLs(cfg.peers))
+	if err != nil {
+		return err
+	}
+
 	root := http.NewServeMux()
 	root.Handle("/raft/", raft.NewHTTPHandler(raftNode))
-	root.Handle("/", srv.Handler())
+	root.Handle("/v1/", srv.Handler())
+	root.Handle("/", web)
 
 	httpServer := &http.Server{
 		Addr:              cfg.httpAdr,
@@ -221,6 +228,15 @@ func peersFromMap(m map[string]string) []raft.Peer {
 	out := make([]raft.Peer, 0, len(m))
 	for id, url := range m {
 		out = append(out, raft.Peer{ID: id, URL: url})
+	}
+	return out
+}
+
+// peerURLs maps peer ids to their base URLs for the dashboard's proxy.
+func peerURLs(peers []raft.Peer) map[string]string {
+	out := make(map[string]string, len(peers))
+	for _, p := range peers {
+		out[p.ID] = p.URL
 	}
 	return out
 }
