@@ -1,0 +1,144 @@
+:root {
+  color-scheme: light dark;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  line-height: 1.5;
+}
+
+body {
+  margin: 0;
+  padding: 1.5rem;
+  background: #0f1115;
+  color: #e6e6e6;
+}
+
+.app {
+  max-width: 60rem;
+  margin: 0 auto;
+}
+
+.app__header h1 {
+  font-size: 1.4rem;
+  margin: 0;
+}
+
+.nodes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+
+.node {
+  border: 1px solid #2a2f3a;
+  border-radius: 0.6rem;
+  padding: 1rem;
+  background: #161a21;
+}
+
+.node--leader {
+  border-color: #4f8cff;
+  box-shadow: 0 0 0 1px #4f8cff inset;
+}
+
+.node header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.node h2 {
+  font-size: 1rem;
+  margin: 0;
+}
+
+.badge {
+  font-size: 0.75rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: #2a2f3a;
+  text-transform: lowercase;
+}
+
+.badge--leader {
+  background: #4f8cff;
+  color: #06111f;
+}
+
+dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.15rem 0.75rem;
+  margin: 0.75rem 0 0;
+}
+dt {
+  opacity: 0.6;
+}
+dd {
+  margin: 0;
+  text-align: right;
+}
+
+.kv {
+  border: 1px solid #2a2f3a;
+  border-radius: 0.6rem;
+  padding: 1rem;
+  background: #161a21;
+}
+
+.kv form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: end;
+}
+
+.kv label {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.8rem;
+  gap: 0.25rem;
+}
+
+input {
+  padding: 0.4rem 0.5rem;
+  border-radius: 0.4rem;
+  border: 1px solid #2a2f3a;
+  background: #0f1115;
+  color: inherit;
+}
+
+.actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+button {
+  font: inherit;
+  padding: 0.4rem 0.8rem;
+  border-radius: 0.4rem;
+  border: 1px solid #4f8cff;
+  background: #4f8cff;
+  color: #06111f;
+  cursor: pointer;
+}
+
+button[type="button"] {
+  background: transparent;
+  color: #cfe0ff;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: progress;
+}
+
+.muted {
+  opacity: 0.6;
+}
+.error {
+  color: #ff6b6b;
+}
+.ok {
+  color: #4fd18b;
+}
