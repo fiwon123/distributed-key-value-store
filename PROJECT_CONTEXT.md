@@ -18,15 +18,16 @@ Users should be able to run a small cluster (3 nodes by default) and perform key
 - **Backend**: Go (net/http or TCP API)
 - **Consensus**: Hand-rolled Raft (educational, not production-ready)
 - **Persistence**: Raft log (file-based) with snapshots planned
+- **Frontend**: React + Vite + TypeScript dashboard, embedded in the node binary
 - **Containerization**: Docker Compose (dev sandbox now; 3-node cluster later)
-- **Testing**: go test (unit tests; failure/chaos tests later)
+- **Testing**: go test (unit tests; failure/chaos tests later); Vitest for the UI
 
 ## Architecture
 
 ```text
-Client (curl/http client)
+Browser (dashboard at /)
   ↓
-HTTP API (node: PUT/GET/DELETE /v1/kv/{key}, GET /v1/status)
+HTTP API (node: PUT/GET/DELETE /v1/kv/{key}, GET /v1/status, GET /cluster)
   ↓
 State machine (in-memory KV map, evolves by applying committed log entries)
   ↓
@@ -51,6 +52,7 @@ Build a hand-rolled Raft implementation and a small HTTP API layer that drives t
 - In-memory KV state machine (map[string]string)
 - Basic persistence of log entries (optional early, required before "persistence" phase)
 - Snapshot after replay/restart (planned)
+- Web dashboard: cluster overview + key-value console, embedded in the node binary
 - 3-node Docker Compose for local cluster
 
 ## API
@@ -61,6 +63,8 @@ Build a hand-rolled Raft implementation and a small HTTP API layer that drives t
 | GET | /v1/kv/{key} | Retrieve value (returns 404 if not found) |
 | DELETE | /v1/kv/{key} | Delete key (returns 204 or 200) |
 | GET | /v1/status | Return node state (role, term, leader, commit index, last applied, peer count)
+| GET | /cluster | Dashboard discovery: local node id + peer ids
+| GET | /node/{id}/... | Server-side proxy to a peer node's API |
 
 ## Design Choices
 
@@ -78,6 +82,7 @@ Build a hand-rolled Raft implementation and a small HTTP API layer that drives t
 3. **Replication**: append entries, log matching, commit on majority, apply committed entries to KV.
 4. **Persistence**: write/read log to disk, recover state on restart.
 5. **Failure tests**: kill leader, verify new leader elected and committed values still readable (end-to-end).
+6. **Dashboard**: React + Vite SPA embedded in the node, cluster overview + KV console.
 
 ## Topology
 

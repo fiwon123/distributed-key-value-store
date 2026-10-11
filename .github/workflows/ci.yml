@@ -1,15 +1,17 @@
 name: CI
 
-# Go CI for this project. Adapted from the engineering-workflow library's
-# `ci.yml.template` — no dedicated Go template ships there yet (see the
-# back-harvest issue in engineering-workflow), so the backend steps were replaced
-# with the Go toolchain: gofmt, go vet, go test, go build.
+# Go and frontend CI for this project. `go-check` runs the Go toolchain
+# (gofmt, vet, test, build); `web-check` runs the Vite/React-TS gate in web/.
 #
 # Action majors are pinned deliberately. Bump them as a reviewed change:
-#   actions/checkout   v7
-#   actions/setup-go   v5
+#   actions/checkout  v7
+#   actions/setup-go  v5
+#   actions/setup-node v4
 # checkout v7 requires runner >= v2.327.1. On a self-hosted runner older than
 # that, these steps fail with an opaque error rather than a version complaint.
+#
+# CI runs on dev -> main release PRs and manual dispatch only. Feature-branch
+# pushes get no CI signal: run `make check` (and `make web-check`) locally.
 
 on:
   pull_request:
@@ -25,6 +27,8 @@ on:
       - "**/*.go"
       - "go.mod"
       - "go.sum"
+      - "web/**"
+      - "internal/webui/**"
       - ".github/workflows/**"
   workflow_dispatch:
 
@@ -65,5 +69,57 @@ jobs:
       - name: Test
         run: go test ./...
 
+      - uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          # Pin via go.mod so CI and local development agree on the toolchain.
+          go-version-file: go.mod
+          cache: true
+
+      - name: Check formatting
+        run: |
+          out="$(gofmt -l .)"
+          if [ -n "$out" ]; then
+            echo "The following files are not gofmt-clean:"
+            echo "$out"
+            exit 1
+          fi
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test ./...
+
       - name: Build
         run: go build ./...
+
+  web-check:
+    name: Web (lint, test, build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint and format check
+        run: npm run lint && npm run format:check
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build

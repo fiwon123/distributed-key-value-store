@@ -44,6 +44,13 @@ air.log
 .opencode/memory/
 __pycache__/
 
+# Frontend
+web/node_modules/
+web/dist/
+web/coverage/
+/internal/webui/dist/*
+!/internal/webui/dist/placeholder.html
+
 # Editor/IDE
 # .idea/
 # .vscode/
