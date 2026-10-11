@@ -53,7 +53,7 @@ Build a hand-rolled Raft implementation and a small HTTP API layer that drives t
 - Basic persistence of log entries (optional early, required before "persistence" phase)
 - Snapshot after replay/restart (planned)
 - Web dashboard: cluster overview + key-value console, embedded in the node binary
-- 3-node Docker Compose for local cluster
+- 3-node local cluster: local processes (smoke script) or Docker Compose
 
 ## API
 

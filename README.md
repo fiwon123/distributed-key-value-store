@@ -26,11 +26,10 @@ Once built, you can run a small cluster (three nodes by default) and:
 
 ## Status
 
-**MVP feature-complete (pre-release).** Implemented: single-node HTTP + in-memory
-store, Raft leader election, log replication and commit, on-disk log persistence
-with restart recovery, in-process leader-failure tests, and the cluster
-dashboard. Remaining: log compaction/snapshots and a compose-based 3-node
-cluster.
+**MVP complete.** Single-node KV, Raft leader election, log replication and
+commit, on-disk log persistence with restart recovery, in-process leader-failure
+tests, the cluster dashboard, and a runnable 3-node cluster (local processes or
+Docker Compose). Remaining: log compaction/snapshots.
 
 ## Stack
 
@@ -38,7 +37,7 @@ cluster.
 - **Consensus**: hand-rolled Raft (educational)
 - **Persistence**: Raft log on disk; snapshots planned
 - **Dashboard**: React + Vite + TypeScript, embedded in the node binary
-- **Cluster**: Docker Compose (three local nodes) — planned
+- **Cluster**: 3 nodes via local processes or Docker Compose
 - **Testing**: standard `testing` package (`go test`); Vitest for the dashboard
 
 ## API
@@ -81,6 +80,34 @@ curl -i -X DELETE http://localhost:8080/v1/kv/greeting
 curl -i http://localhost:8080/v1/status
 ```
 
+## Run a 3-node cluster
+
+Two ways, same topology: three nodes, one keyspace, majority commit.
+
+**Local processes (no docker)** — the Done-when check, fully scripted:
+
+```bash
+scripts/cluster-smoke.sh   # or: make cluster-smoke
+```
+
+It starts three nodes on `:9081`-`:9083` with persistent data dirs, waits for a
+leader, writes a key, kills the leader, waits for a new leader, and reads the
+key back — proving committed state survives a leader failure.
+
+**Docker Compose** — the containerized cluster ([`deploy/`](deploy)):
+
+```bash
+make cluster-up     # docker compose -f deploy/docker-compose.yml up -d --build
+curl -s localhost:8081/v1/status   # node1 (also 8082, 8083)
+make cluster-down
+```
+
+Peers are addressed by service name (`node2=http://node2:8080`) and each node
+persists its log in a named volume, so a restart recovers it. Writes must reach
+the current leader; a follower answers `503` with `X-Raft-Leader`. Kill the
+leader container (`docker compose -f deploy/docker-compose.yml kill node1`) and a
+survivor takes over.
+
 ## Design choices
 
 - **No sharding** — one keyspace, replicated to every node (3-node quorum).
@@ -102,22 +129,8 @@ curl -i http://localhost:8080/v1/status
 ## Done when
 
 You can run three nodes locally, write a key, kill the leader, and still read the
-committed value from the newly elected leader.
-
-## Development
-
-The docker compose **dev sandbox** gives you the full toolchain (Go, `gh`,
-`air` fast reload) with your host GitHub config mounted read-only and
-`GH_TOKEN`/`GITHUB_TOKEN` forwarded at runtime — never baked into the image.
-
-```bash
-make dev-up        # build + start the sandbox (needs docker on the host)
-make dev-restart   # restart after Dockerfile/deps changes
-make shell         # shell inside the sandbox
-make opencode      # run opencode inside the sandbox
-make dev-down      # stop and remove the sandbox
-make dev-log       # follow container logs
-```
+committed value from the newly elected leader. `make cluster-smoke` checks this
+end to end.
 
 ## Development
 
