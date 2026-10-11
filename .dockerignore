@@ -11,3 +11,5 @@ kvnode
 *.test
 *.out
 coverage.*
+web/node_modules
+internal/webui/dist/assets
