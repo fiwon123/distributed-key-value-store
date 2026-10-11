@@ -25,7 +25,11 @@ services:
       - "host.docker.internal:host-gateway"
     command: ["./scripts/dev-entrypoint.sh"]
     ports:
-      - "8080:8080"
+      # Host port only; the service listens on 8080 inside the container. Override
+      # HOST_PORT so this sandbox and sibling projects can run at once — two
+      # containers publishing the same host port means the second cannot program
+      # its mapping and can be left with no network attachment, killing DNS.
+      - "${HOST_PORT:-8080}:8080"
     environment:
       - GH_TOKEN=${GH_TOKEN:-}
       - GITHUB_TOKEN=${GITHUB_TOKEN:-}
