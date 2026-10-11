@@ -72,6 +72,10 @@ type Config struct {
 	// ApplyFunc is called once per committed log entry, in order, with the
 	// entry's index and command bytes. It must be deterministic and idempotent.
 	ApplyFunc func(index uint64, data []byte) error
+
+	// Storage persists the log and hard state. When nil, the node keeps all
+	// state in memory (used by tests).
+	Storage Storage
 }
 
 // DefaultConfig returns timings suited to local development and tests:
@@ -99,6 +103,7 @@ type Node struct {
 	cfg       Config
 	transport Transport
 	applyFn   func(index uint64, data []byte) error
+	storage   Storage
 
 	role     Role
 	term     uint64
@@ -123,14 +128,29 @@ type Node struct {
 	wg    sync.WaitGroup
 }
 
-// NewNode creates a node. It does not start running until Start is called.
+// NewNode creates an in-memory node. It does not start running until Start is
+// called. Tests and callers that do not need persistence use this; callers that
+// persist state use Open.
 func NewNode(cfg Config, t Transport) *Node {
-	return &Node{
+	n, err := Open(cfg, t)
+	if err != nil {
+		// Only reachable when cfg.Storage is set and fails to load. NewNode is
+		// for the in-memory case; a load error is surfaced by Open.
+		panic(err)
+	}
+	return n
+}
+
+// Open builds a node and, when cfg.Storage is set, recovers its persisted term,
+// votedFor, and log. With no storage it behaves like NewNode.
+func Open(cfg Config, t Transport) (*Node, error) {
+	n := &Node{
 		id:           cfg.ID,
 		peers:        cfg.Peers,
 		cfg:          cfg,
 		transport:    t,
 		applyFn:      cfg.ApplyFunc,
+		storage:      cfg.Storage,
 		role:         Follower,
 		log:          []LogEntry{{}}, // sentinel at index 0
 		nextIndex:    make([]uint64, len(cfg.Peers)),
@@ -139,6 +159,49 @@ func NewNode(cfg Config, t Transport) *Node {
 		now:          time.Now,
 		rand:         rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64())),
 		stopC:        make(chan struct{}),
+	}
+	if cfg.Storage == nil {
+		return n, nil
+	}
+	hard, entries, err := cfg.Storage.Load()
+	if err != nil {
+		return nil, err
+	}
+	n.term = hard.Term
+	n.votedFor = hard.VotedFor
+	n.log = append(n.log, entries...)
+	return n, nil
+}
+
+// persistHardStateLocked durably records the current term and vote. Caller must
+// hold n.mu.
+func (n *Node) persistHardStateLocked() {
+	if n.storage == nil {
+		return
+	}
+	if err := n.storage.SaveHardState(HardState{Term: n.term, VotedFor: n.votedFor}); err != nil {
+		log.Printf("raft %s: save hard state: %v", n.id, err)
+	}
+}
+
+// persistEntriesLocked durably appends entries. Caller must hold n.mu.
+func (n *Node) persistEntriesLocked(entries []LogEntry) {
+	if n.storage == nil || len(entries) == 0 {
+		return
+	}
+	if err := n.storage.AppendEntries(entries); err != nil {
+		log.Printf("raft %s: append log entries: %v", n.id, err)
+	}
+}
+
+// persistTruncateLocked durably removes entries with index >= index. Caller
+// must hold n.mu.
+func (n *Node) persistTruncateLocked(index uint64) {
+	if n.storage == nil {
+		return
+	}
+	if err := n.storage.TruncateFrom(index); err != nil {
+		log.Printf("raft %s: truncate log: %v", n.id, err)
 	}
 }
 
@@ -196,11 +259,13 @@ func (n *Node) propose(data []byte, timeout time.Duration) error {
 		return ErrNotLeader
 	}
 	index := n.lastLogIndex() + 1
-	n.log = append(n.log, LogEntry{
+	entry := LogEntry{
 		Index: index,
 		Term:  n.term,
 		Data:  append([]byte(nil), data...),
-	})
+	}
+	n.log = append(n.log, entry)
+	n.persistEntriesLocked([]LogEntry{entry})
 	n.mu.Unlock()
 
 	// Push the new entry (and any backlog) to peers, then wait for it to apply.
@@ -294,6 +359,7 @@ func (n *Node) runElection() {
 	n.role = Candidate
 	n.votedFor = n.id
 	n.leaderID = ""
+	n.persistHardStateLocked()
 	args := RequestVoteArgs{
 		Term:         term,
 		CandidateID:  n.id,
@@ -362,6 +428,7 @@ func (n *Node) becomeFollowerLocked(term uint64) {
 	n.votedFor = ""
 	n.leaderID = ""
 	n.lastActivity = n.now()
+	n.persistHardStateLocked()
 }
 
 // HandleRequestVote implements the voter side of §5.2.
@@ -382,6 +449,7 @@ func (n *Node) HandleRequestVote(args RequestVoteArgs) RequestVoteReply {
 		if n.candidateLogUpToDateLocked(args) {
 			n.votedFor = args.CandidateID
 			n.lastActivity = n.now()
+			n.persistHardStateLocked()
 			return RequestVoteReply{Term: n.term, VoteGranted: true}
 		}
 	}

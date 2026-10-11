@@ -36,8 +36,10 @@ func (n *Node) HandleAppendEntries(args AppendEntriesArgs) AppendEntriesReply {
 				continue // already have this entry
 			}
 			n.log = n.log[:entry.Index] // drop the divergent suffix
+			n.persistTruncateLocked(entry.Index)
 		}
 		n.log = append(n.log, args.Entries[i:]...)
+		n.persistEntriesLocked(args.Entries[i:])
 		break
 	}
 
@@ -63,6 +65,13 @@ func (n *Node) replicateAll() {
 	term := n.term
 	commit := n.commitIndex
 	lastIndex := n.lastLogIndex()
+
+	if len(n.peers) == 0 {
+		// A single-node cluster reaches a majority on its own.
+		n.advanceCommitLocked()
+		n.mu.Unlock()
+		return
+	}
 
 	type request struct {
 		index int

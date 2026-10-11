@@ -1,9 +1,9 @@
 // Command kvnode runs a single node of the distributed key-value store.
 //
-// Phase 2: the node runs the raft loop (Follower/Candidate/Leader), the HTTP
-// API is still backed directly by the in-memory store, and /v1/status reports
-// the live raft role/term/leader. Log replication and write routing land in the
-// next phase.
+// The node runs the raft loop (Follower/Candidate/Leader log replication),
+// backs writes with the replicated log, and serves /v1. When -data-dir is set,
+// the current term, vote, and log entries are persisted and recovered on
+// restart.
 package main
 
 import (
@@ -29,7 +29,7 @@ func main() {
 		id      = flag.String("id", "node1", "unique node id")
 		httpAdr = flag.String("http", ":8080", "HTTP listen address")
 		peersFl = flag.String("peers", "", "comma-separated peers as id=url (e.g. node2=http://localhost:8082)")
-		dataDir = flag.String("data-dir", "", "directory for persistent state (unused until the persistence phase)")
+		dataDir = flag.String("data-dir", "", "directory for persistent raft state (empty = in-memory)")
 	)
 	flag.Parse()
 
@@ -66,7 +66,13 @@ func run(cfg runConfig) error {
 		}
 		return store.Apply(cmd)
 	}
-	raftNode := raft.NewNode(raftCfg, raft.NewHTTPTransport())
+	if cfg.dataDir != "" {
+		raftCfg.Storage = raft.NewFileStorage(cfg.dataDir)
+	}
+	raftNode, err := raft.Open(raftCfg, raft.NewHTTPTransport())
+	if err != nil {
+		return err
+	}
 	raftNode.Start()
 	defer raftNode.Stop()
 
@@ -90,7 +96,7 @@ func run(cfg runConfig) error {
 	go func() {
 		log.Printf("kvnode id=%s listening on %s (peers=%d)", cfg.id, cfg.httpAdr, len(cfg.peers))
 		if cfg.dataDir != "" {
-			log.Printf("kvnode data-dir=%s (not used until the persistence phase)", cfg.dataDir)
+			log.Printf("kvnode persisting raft state to %s", cfg.dataDir)
 		}
 		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			errCh <- err
