@@ -6,7 +6,7 @@
 
 GO ?= go
 
-.PHONY: help check fmt vet test build run clean \
+.PHONY: help check fmt vet test test-integration build run clean \
         preflight dev-up dev-down dev-restart dev-log dev-build reset \
         shell opencode opencode-auto dev-shell dev-opencode dev-opencode-auto
 
@@ -38,6 +38,11 @@ vet:
 test:
 	@echo "==> go test"
 	$(GO) test ./...
+
+## test-integration: run opt-in integration tests (leader failure + no quorum)
+test-integration:
+	@echo "==> go test -tags=integration"
+	$(GO) test -tags=integration ./...
 
 build:
 	@echo "==> go build"
