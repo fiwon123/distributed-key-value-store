@@ -69,8 +69,9 @@ distributed-key-value-store/
 go build ./...           # build all packages
 go vet ./...             # static analysis
 go test ./...            # run tests
+go test -tags=integration ./...  # opt-in multi-node failure tests
 gofmt -l .               # list unformatted files (empty = clean)
-go run ./cmd/kvnode      # run a node (once implemented)
+go run ./cmd/kvnode      # run a node
 ```
 
 ### Run All Checks
@@ -83,6 +84,10 @@ make check
 CI enforces. Prefer it over listing commands separately: agents follow whatever
 `check` runs, so a check missing from it is a check nobody performs. Add new
 checks to the `Makefile`.
+
+Multi-node failure tests are opt-in behind the `integration` build tag and are
+**not** part of `make check`. Run them with `make test-integration` (i.e.
+`go test -tags=integration ./...`).
 
 > **Until `go.mod` exists, `make check` skips the Go toolchain steps** with an
 > explicit "SKIPPED (skipped is not passed)" message — a skipped run verifies
