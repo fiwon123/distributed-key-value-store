@@ -13,13 +13,20 @@ import (
 // errors so unavailable/error paths can be exercised without a real node.
 type fakeBackend struct {
 	m      map[string]string
+	getErr error
 	putErr error
 	delErr error
 }
 
 func newFakeBackend() *fakeBackend { return &fakeBackend{m: map[string]string{}} }
 
-func (f *fakeBackend) Get(key string) (string, bool) { v, ok := f.m[key]; return v, ok }
+func (f *fakeBackend) Get(key string) (string, bool, error) {
+	if f.getErr != nil {
+		return "", false, f.getErr
+	}
+	v, ok := f.m[key]
+	return v, ok, nil
+}
 
 func (f *fakeBackend) Put(key, value string) error {
 	if f.putErr != nil {
@@ -98,7 +105,7 @@ func TestPutJSONBody(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("PUT status = %d, want %d", resp.StatusCode, http.StatusOK)
 	}
-	if got, _ := b.Get("k"); got != "from-json" {
+	if got, _, _ := b.Get("k"); got != "from-json" {
 		t.Fatalf("stored value = %q, want %q", got, "from-json")
 	}
 }
@@ -165,6 +172,22 @@ func TestPutUnavailable(t *testing.T) {
 	resp := doRequest(t, http.MethodPut, ts.URL+"/v1/kv/k", "", "v")
 	if resp.StatusCode != http.StatusServiceUnavailable {
 		t.Fatalf("PUT status = %d, want %d", resp.StatusCode, http.StatusServiceUnavailable)
+	}
+	if got := resp.Header.Get("X-Raft-Leader"); got != "node1" {
+		t.Fatalf("X-Raft-Leader = %q, want node1", got)
+	}
+}
+
+func TestGetUnavailable(t *testing.T) {
+	b := newFakeBackend()
+	b.getErr = ErrUnavailable
+	ts := newTestServer(t, b)
+	resp := doRequest(t, http.MethodGet, ts.URL+"/v1/kv/k", "", "")
+	if resp.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("GET status = %d, want %d", resp.StatusCode, http.StatusServiceUnavailable)
+	}
+	if got := resp.Header.Get("X-Raft-Leader"); got != "node1" {
+		t.Fatalf("X-Raft-Leader = %q, want node1", got)
 	}
 }
 

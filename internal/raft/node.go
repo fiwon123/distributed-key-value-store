@@ -2,10 +2,21 @@ package raft
 
 import (
 	"context"
+	"errors"
 	"log"
 	"math/rand/v2"
 	"sync"
 	"time"
+)
+
+// Errors returned by Propose and surfaced by callers as 503s.
+var (
+	// ErrNotLeader means this node cannot accept a write because it is not the
+	// current leader.
+	ErrNotLeader = errors.New("raft: not the leader")
+	// ErrUnavailable means the write was accepted locally but did not commit
+	// (lost quorum, lost leadership, or timed out).
+	ErrUnavailable = errors.New("raft: write not committed")
 )
 
 // Role is a node's Raft role.
@@ -16,7 +27,7 @@ const (
 	Follower Role = iota
 	// Candidate is running an election.
 	Candidate
-	// Leader serves client writes once replication lands.
+	// Leader serves client writes and replicates the log.
 	Leader
 )
 
@@ -36,9 +47,11 @@ func (r Role) String() string {
 // Snapshot is a point-in-time view of a node's cluster state, safe to hand to
 // status endpoints without holding the node's lock.
 type Snapshot struct {
-	Role   string
-	Term   uint64
-	Leader string
+	Role        string
+	Term        uint64
+	Leader      string
+	CommitIndex uint64
+	LastApplied uint64
 }
 
 // Peer is another node in the cluster.
@@ -47,18 +60,23 @@ type Peer struct {
 	URL string
 }
 
-// Config tunes election and heartbeat timing and identifies the node.
+// Config tunes election/heartbeat timing, identifies the node, and supplies the
+// state-machine apply function.
 type Config struct {
 	ID                 string
 	Peers              []Peer // all other nodes, excluding self
 	ElectionTimeoutMin time.Duration
 	ElectionTimeoutMax time.Duration
 	HeartbeatInterval  time.Duration
+
+	// ApplyFunc is called once per committed log entry, in order, with the
+	// entry's index and command bytes. It must be deterministic and idempotent.
+	ApplyFunc func(index uint64, data []byte) error
 }
 
 // DefaultConfig returns timings suited to local development and tests:
-// 300–600ms election timeout, 100ms heartbeats. Real deployments would need
-// larger values.
+// 300–600ms election timeout, 100ms heartbeats. Real deployments need larger
+// values.
 func DefaultConfig() Config {
 	return Config{
 		ElectionTimeoutMin: 300 * time.Millisecond,
@@ -69,10 +87,10 @@ func DefaultConfig() Config {
 
 // Node is a single raft participant.
 //
-// Thread safety: the node's state (term, role, votedFor, leader, timers) is
-// guarded by mu. Network calls happen outside the lock — RPC handlers take the
-// lock on the receiving side, and calling out while holding our own lock could
-// deadlock two nodes elected in the same term.
+// Thread safety: the node's state (term, role, votedFor, leader, log,
+// commit/apply indexes, timers) is guarded by mu. Network calls happen outside
+// the lock — RPC handlers take the lock on the receiving side, and calling out
+// while holding our own lock could deadlock two nodes elected in the same term.
 type Node struct {
 	mu sync.Mutex
 
@@ -80,15 +98,21 @@ type Node struct {
 	peers     []Peer
 	cfg       Config
 	transport Transport
+	applyFn   func(index uint64, data []byte) error
 
 	role     Role
 	term     uint64
 	votedFor string
 	leaderID string
 
-	// last log index/term at startup; the log itself arrives in phase 3.
-	lastLogIndex uint64
-	lastLogTerm  uint64
+	// log holds entries with a sentinel at index 0, so log[i].Index == i.
+	log         []LogEntry
+	commitIndex uint64
+	lastApplied uint64
+
+	// Leader-only replication progress, parallel to peers.
+	nextIndex  []uint64
+	matchIndex []uint64
 
 	lastActivity time.Time
 	now          func() time.Time
@@ -106,10 +130,14 @@ func NewNode(cfg Config, t Transport) *Node {
 		peers:        cfg.Peers,
 		cfg:          cfg,
 		transport:    t,
+		applyFn:      cfg.ApplyFunc,
 		role:         Follower,
+		log:          []LogEntry{{}}, // sentinel at index 0
+		nextIndex:    make([]uint64, len(cfg.Peers)),
+		matchIndex:   make([]uint64, len(cfg.Peers)),
+		lastActivity: time.Now(),
 		now:          time.Now,
 		rand:         rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64())),
-		lastActivity: time.Now(),
 		stopC:        make(chan struct{}),
 	}
 }
@@ -138,11 +166,76 @@ func (n *Node) Stop() {
 	}
 }
 
-// Snapshot returns a copy of the node's role/term/leader.
+// Snapshot returns a copy of the node's role/term/leader/commit/apply state.
 func (n *Node) Snapshot() Snapshot {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	return Snapshot{Role: n.role.String(), Term: n.term, Leader: n.leaderID}
+	return Snapshot{
+		Role:        n.role.String(),
+		Term:        n.term,
+		Leader:      n.leaderID,
+		CommitIndex: n.commitIndex,
+		LastApplied: n.lastApplied,
+	}
+}
+
+// Propose appends data to the leader's log and blocks until the entry commits
+// and is applied, or until the timeout elapses. It returns ErrNotLeader if this
+// node is not the leader, and ErrUnavailable on timeout or lost leadership.
+func (n *Node) Propose(data []byte) error {
+	return n.propose(data, 3*time.Second)
+}
+
+func (n *Node) propose(data []byte, timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	n.mu.Lock()
+	if n.role != Leader {
+		n.mu.Unlock()
+		return ErrNotLeader
+	}
+	index := n.lastLogIndex() + 1
+	n.log = append(n.log, LogEntry{
+		Index: index,
+		Term:  n.term,
+		Data:  append([]byte(nil), data...),
+	})
+	n.mu.Unlock()
+
+	// Push the new entry (and any backlog) to peers, then wait for it to apply.
+	n.replicateAll()
+	if err := n.waitApplied(ctx, index); err != nil {
+		return err
+	}
+	// The entry committed locally; replicate once more so followers learn the
+	// new commit index immediately instead of waiting for the next heartbeat.
+	n.replicateAll()
+	return nil
+}
+
+func (n *Node) waitApplied(ctx context.Context, index uint64) error {
+	timer := time.NewTimer(time.Millisecond)
+	defer timer.Stop()
+	for {
+		n.mu.Lock()
+		applied := n.lastApplied >= index
+		leader := n.role == Leader
+		n.mu.Unlock()
+
+		if applied {
+			return nil
+		}
+		if !leader {
+			return ErrNotLeader
+		}
+		select {
+		case <-ctx.Done():
+			return ErrUnavailable
+		case <-timer.C:
+			timer.Reset(2 * time.Millisecond)
+		}
+	}
 }
 
 func (n *Node) run() {
@@ -171,7 +264,7 @@ func (n *Node) tickFunc() {
 			n.runElection()
 		}
 	case Leader:
-		n.sendHeartbeats()
+		n.replicateAll()
 	}
 }
 
@@ -204,8 +297,8 @@ func (n *Node) runElection() {
 	args := RequestVoteArgs{
 		Term:         term,
 		CandidateID:  n.id,
-		LastLogIndex: n.lastLogIndex,
-		LastLogTerm:  n.lastLogTerm,
+		LastLogIndex: n.lastLogIndex(),
+		LastLogTerm:  n.lastLogTerm(),
 	}
 	peers := make([]Peer, len(n.peers))
 	copy(peers, n.peers)
@@ -249,6 +342,11 @@ func (n *Node) becomeLeaderLocked() {
 	}
 	n.role = Leader
 	n.leaderID = n.id
+	next := n.lastLogIndex() + 1
+	for i := range n.nextIndex {
+		n.nextIndex[i] = next
+		n.matchIndex[i] = 0
+	}
 	log.Printf("raft %s: became leader for term %d", n.id, n.term)
 }
 
@@ -266,32 +364,6 @@ func (n *Node) becomeFollowerLocked(term uint64) {
 	n.lastActivity = n.now()
 }
 
-// sendHeartbeats pushes an empty AppendEntries to every peer. Replies with a
-// higher term step the leader down.
-func (n *Node) sendHeartbeats() {
-	ctx := context.Background()
-
-	n.mu.Lock()
-	args := AppendEntriesArgs{Term: n.term, LeaderID: n.id}
-	peers := make([]Peer, len(n.peers))
-	copy(peers, n.peers)
-	n.mu.Unlock()
-
-	for _, p := range peers {
-		go func(p Peer) {
-			reply, err := n.transport.AppendEntries(ctx, p, args)
-			if err != nil {
-				return
-			}
-			n.mu.Lock()
-			defer n.mu.Unlock()
-			if reply.Term > n.term {
-				n.becomeFollowerLocked(reply.Term)
-			}
-		}(p)
-	}
-}
-
 // HandleRequestVote implements the voter side of §5.2.
 func (n *Node) HandleRequestVote(args RequestVoteArgs) RequestVoteReply {
 	n.mu.Lock()
@@ -305,9 +377,9 @@ func (n *Node) HandleRequestVote(args RequestVoteArgs) RequestVoteReply {
 	}
 
 	// args.Term == n.term: grant iff we have not voted yet this term and the
-	// candidate's log is at least as up to date as ours.
+	// candidate's log is at least as up to date as ours (§5.4.1).
 	if n.votedFor == "" || n.votedFor == args.CandidateID {
-		if n.candidateLogUpToDate(args) {
+		if n.candidateLogUpToDateLocked(args) {
 			n.votedFor = args.CandidateID
 			n.lastActivity = n.now()
 			return RequestVoteReply{Term: n.term, VoteGranted: true}
@@ -316,44 +388,11 @@ func (n *Node) HandleRequestVote(args RequestVoteArgs) RequestVoteReply {
 	return RequestVoteReply{Term: n.term, VoteGranted: false}
 }
 
-// candidateLogUpToDate implements §5.4.1. With the empty log of phase 2 every
-// candidate qualifies; phase 3 fills in the comparison.
-func (n *Node) candidateLogUpToDate(args RequestVoteArgs) bool {
-	if args.LastLogTerm != n.lastLogTerm {
-		return args.LastLogTerm > n.lastLogTerm
+// candidateLogUpToDateLocked implements the up-to-date check of §5.4.1.
+func (n *Node) candidateLogUpToDateLocked(args RequestVoteArgs) bool {
+	lastIndex, lastTerm := n.lastLogIndex(), n.lastLogTerm()
+	if args.LastLogTerm != lastTerm {
+		return args.LastLogTerm > lastTerm
 	}
-	return args.LastLogIndex >= n.lastLogIndex
-}
-
-// HandleAppendEntries implements the follower side of §5.3. Phase 2 only uses
-// the heartbeat path (empty entries); log consistency checks arrive with
-// replication.
-func (n *Node) HandleAppendEntries(args AppendEntriesArgs) AppendEntriesReply {
-	if len(args.Entries) > 0 {
-		return n.handleAppendEntriesWithLog(args)
-	}
-
-	n.mu.Lock()
-	defer n.mu.Unlock()
-	if args.Term < n.term {
-		return AppendEntriesReply{Term: n.term, Success: false}
-	}
-	if args.Term > n.term {
-		// A newer term wins: adopt it and clear our vote bookkeeping.
-		n.term = args.Term
-		n.votedFor = ""
-	}
-	// Step down from candidate to follower and acknowledge the leader. A
-	// same-term heartbeat keeps our vote for that term — re-granting is
-	// harmless (the leader already holds a majority) and wiping it could
-	// let a term-T challenger collect a second round from us.
-	n.role = Follower
-	n.leaderID = args.LeaderID
-	n.lastActivity = n.now()
-	return AppendEntriesReply{Term: n.term, Success: true}
-}
-
-// handleAppendEntriesWithLog rejects entries until phase 3 implements the log.
-func (n *Node) handleAppendEntriesWithLog(AppendEntriesArgs) AppendEntriesReply {
-	return AppendEntriesReply{Term: 0, Success: false}
+	return args.LastLogIndex >= lastIndex
 }

@@ -259,7 +259,7 @@ func TestLeaderStepsDownOnHigherTermHeartbeatReply(t *testing.T) {
 	n.leaderID = "node1"
 	n.mu.Unlock()
 
-	n.sendHeartbeats()
+	n.replicateAll()
 
 	waitFor(t, time.Second, func() bool {
 		snap := n.Snapshot()

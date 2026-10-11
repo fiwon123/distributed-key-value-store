@@ -58,11 +58,20 @@ type runConfig struct {
 func run(cfg runConfig) error {
 	store := kv.New()
 
-	raftNode := raft.NewNode(raftNodeConfig(cfg), raft.NewHTTPTransport())
+	raftCfg := raftNodeConfig(cfg)
+	raftCfg.ApplyFunc = func(_ uint64, data []byte) error {
+		cmd, err := kv.DecodeCommand(data)
+		if err != nil {
+			return err
+		}
+		return store.Apply(cmd)
+	}
+	raftNode := raft.NewNode(raftCfg, raft.NewHTTPTransport())
 	raftNode.Start()
 	defer raftNode.Stop()
 
-	srv := httpapi.New(directBackend{store: store}, raftStatus{id: cfg.id, peers: len(cfg.peers), node: raftNode})
+	backend := &raftBackend{store: store, node: raftNode}
+	srv := httpapi.New(backend, raftStatus{id: cfg.id, peers: len(cfg.peers), node: raftNode})
 
 	root := http.NewServeMux()
 	root.Handle("/raft/", raft.NewHTTPHandler(raftNode))
@@ -108,21 +117,54 @@ func raftNodeConfig(cfg runConfig) raft.Config {
 	return c
 }
 
-// directBackend adapts the in-memory store to the httpapi.Backend interface.
-// Writes always succeed here; the Raft-backed backend (next phase) is where
-// ErrUnavailable originates.
-type directBackend struct {
+// raftBackend drives writes through the raft log and serves reads from the
+// applied in-memory state. Reads and writes are leader-only for the MVP; a
+// non-leader returns httpapi.ErrUnavailable (→ 503).
+type raftBackend struct {
 	store *kv.Store
+	node  *raft.Node
 }
 
-func (b directBackend) Get(key string) (string, bool) { return b.store.Get(key) }
-
-func (b directBackend) Put(key, value string) error {
-	b.store.Put(key, value)
-	return nil
+func (b *raftBackend) Get(key string) (string, bool, error) {
+	if b.node.Snapshot().Role != "leader" {
+		return "", false, httpapi.ErrUnavailable
+	}
+	value, ok := b.store.Get(key)
+	return value, ok, nil
 }
 
-func (b directBackend) Delete(key string) (bool, error) { return b.store.Delete(key), nil }
+func (b *raftBackend) Put(key, value string) error {
+	data, err := kv.Command{Op: kv.OpPut, Key: key, Value: value}.Encode()
+	if err != nil {
+		return err
+	}
+	return b.propose(data)
+}
+
+func (b *raftBackend) Delete(key string) (bool, error) {
+	data, err := kv.Command{Op: kv.OpDelete, Key: key}.Encode()
+	if err != nil {
+		return false, err
+	}
+	if err := b.propose(data); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// propose submits an encoded command to raft and maps raft errors to the API's
+// ErrUnavailable so the handler returns 503 (with the leader hint).
+func (b *raftBackend) propose(data []byte) error {
+	err := b.node.Propose(data)
+	switch {
+	case err == nil:
+		return nil
+	case errors.Is(err, raft.ErrNotLeader), errors.Is(err, raft.ErrUnavailable):
+		return httpapi.ErrUnavailable
+	default:
+		return err
+	}
+}
 
 // raftStatus reports live raft state through the httpapi.Status shape.
 type raftStatus struct {
@@ -134,11 +176,13 @@ type raftStatus struct {
 func (s raftStatus) Status() httpapi.Status {
 	snap := s.node.Snapshot()
 	return httpapi.Status{
-		ID:     s.id,
-		Role:   snap.Role,
-		Term:   snap.Term,
-		Leader: snap.Leader,
-		Peers:  s.peers,
+		ID:          s.id,
+		Role:        snap.Role,
+		Term:        snap.Term,
+		Leader:      snap.Leader,
+		CommitIndex: snap.CommitIndex,
+		LastApplied: snap.LastApplied,
+		Peers:       s.peers,
 	}
 }
 
