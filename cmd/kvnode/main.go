@@ -1,8 +1,9 @@
 // Command kvnode runs a single node of the distributed key-value store.
 //
-// Phase 1 is a single-node server: the HTTP API is backed directly by the
-// in-memory store. Later phases add Raft (elections, replication), persistence,
-// and a peer-to-peer transport behind the same HTTP surface.
+// Phase 2: the node runs the raft loop (Follower/Candidate/Leader), the HTTP
+// API is still backed directly by the in-memory store, and /v1/status reports
+// the live raft role/term/leader. Log replication and write routing land in the
+// next phase.
 package main
 
 import (
@@ -20,6 +21,7 @@ import (
 
 	"github.com/fiwon123/distributed-key-value-store/internal/httpapi"
 	"github.com/fiwon123/distributed-key-value-store/internal/kv"
+	"github.com/fiwon123/distributed-key-value-store/internal/raft"
 )
 
 func main() {
@@ -39,7 +41,7 @@ func main() {
 	if err := run(runConfig{
 		id:      *id,
 		httpAdr: *httpAdr,
-		peers:   peers,
+		peers:   peersFromMap(peers),
 		dataDir: *dataDir,
 	}); err != nil {
 		log.Fatalf("kvnode: %v", err)
@@ -49,17 +51,26 @@ func main() {
 type runConfig struct {
 	id      string
 	httpAdr string
-	peers   map[string]string
+	peers   []raft.Peer
 	dataDir string
 }
 
 func run(cfg runConfig) error {
 	store := kv.New()
-	srv := httpapi.New(directBackend{store: store}, singleStatus{id: cfg.id, peers: len(cfg.peers)})
+
+	raftNode := raft.NewNode(raftNodeConfig(cfg), raft.NewHTTPTransport())
+	raftNode.Start()
+	defer raftNode.Stop()
+
+	srv := httpapi.New(directBackend{store: store}, raftStatus{id: cfg.id, peers: len(cfg.peers), node: raftNode})
+
+	root := http.NewServeMux()
+	root.Handle("/raft/", raft.NewHTTPHandler(raftNode))
+	root.Handle("/", srv.Handler())
 
 	httpServer := &http.Server{
 		Addr:              cfg.httpAdr,
-		Handler:           srv.Handler(),
+		Handler:           root,
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
@@ -88,8 +99,17 @@ func run(cfg runConfig) error {
 	}
 }
 
+// raftNodeConfig returns a raft config with default election/heartbeat timing
+// and this node's identity and peers.
+func raftNodeConfig(cfg runConfig) raft.Config {
+	c := raft.DefaultConfig()
+	c.ID = cfg.id
+	c.Peers = cfg.peers
+	return c
+}
+
 // directBackend adapts the in-memory store to the httpapi.Backend interface.
-// Writes always succeed here; the Raft-backed backend (later phase) is where
+// Writes always succeed here; the Raft-backed backend (next phase) is where
 // ErrUnavailable originates.
 type directBackend struct {
 	store *kv.Store
@@ -104,17 +124,20 @@ func (b directBackend) Put(key, value string) error {
 
 func (b directBackend) Delete(key string) (bool, error) { return b.store.Delete(key), nil }
 
-// singleStatus reports a single-node status until Raft is wired in.
-type singleStatus struct {
+// raftStatus reports live raft state through the httpapi.Status shape.
+type raftStatus struct {
 	id    string
 	peers int
+	node  *raft.Node
 }
 
-func (s singleStatus) Status() httpapi.Status {
+func (s raftStatus) Status() httpapi.Status {
+	snap := s.node.Snapshot()
 	return httpapi.Status{
 		ID:     s.id,
-		Role:   "single",
-		Leader: s.id,
+		Role:   snap.Role,
+		Term:   snap.Term,
+		Leader: snap.Leader,
 		Peers:  s.peers,
 	}
 }
@@ -140,4 +163,14 @@ func parsePeers(s string) (map[string]string, error) {
 		peers[id] = url
 	}
 	return peers, nil
+}
+
+// peersFromMap converts a parsed peer map to a slice of raft.Peer. Map
+// iteration order is random, which is fine — raft peers are addressed by ID.
+func peersFromMap(m map[string]string) []raft.Peer {
+	out := make([]raft.Peer, 0, len(m))
+	for id, url := range m {
+		out = append(out, raft.Peer{ID: id, URL: url})
+	}
+	return out
 }

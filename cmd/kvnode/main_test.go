@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/fiwon123/distributed-key-value-store/internal/kv"
+	"github.com/fiwon123/distributed-key-value-store/internal/raft"
 )
 
 func TestParsePeers(t *testing.T) {
@@ -52,6 +53,21 @@ func TestParsePeers(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestRaftNodeConfigHasTimings(t *testing.T) {
+	// Regression: wiring that forgets DefaultConfig leaves election timing at
+	// zero, which makes followers re-elect every tick (term churn).
+	cfg := raftNodeConfig(runConfig{id: "node1", peers: []raft.Peer{{ID: "node2"}}})
+	if cfg.ID != "node1" || len(cfg.Peers) != 1 {
+		t.Fatalf("cfg = %+v, want id node1 with 1 peer", cfg)
+	}
+	if cfg.ElectionTimeoutMin <= 0 || cfg.ElectionTimeoutMax <= cfg.ElectionTimeoutMin {
+		t.Fatalf("election timeouts = [%v, %v], want 0 < min < max", cfg.ElectionTimeoutMin, cfg.ElectionTimeoutMax)
+	}
+	if cfg.HeartbeatInterval <= 0 {
+		t.Fatalf("heartbeat interval = %v, want > 0", cfg.HeartbeatInterval)
 	}
 }
 
