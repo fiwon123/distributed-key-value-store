@@ -21,7 +21,7 @@ Users should be able to run a small cluster (3 nodes by default) and perform key
 - Language: Go (standard toolchain)
 - Consensus: hand-rolled Raft (educational — not production-ready)
 - Persistence: Raft log on disk; snapshots planned
-- HTTP API: `net/http` (`PUT/GET/DELETE /v1/kv/{key}`, `GET /v1/status`)
+- HTTP API: `net/http` (`PUT/GET/DELETE /v1/kv/{key}`, `GET /v1/status`), with an OpenAPI contract at `GET /v1/openapi.json` and Swagger UI at `GET /docs`
 - Dashboard: React + Vite + TypeScript (`web/`), embedded via `internal/webui`
 - Orchestration: Docker Compose (3-node local cluster)
 - Testing: `go test` (standard library `testing`); Vitest for the dashboard
@@ -51,10 +51,10 @@ dashboard. The tree:
 ```
 distributed-key-value-store/
 ├── cmd/kvnode/          # node entry point (flags, wiring, startup)
-├── internal/httpapi/    # HTTP handlers for /v1/kv/{key} and /v1/status
+├── internal/httpapi/    # HTTP handlers: /v1/kv/{key}, /v1/status, /v1/openapi.json
 ├── internal/raft/       # hand-rolled Raft (roles, elections, replication, storage)
 ├── internal/kv/         # in-memory state machine
-├── internal/webui/      # dashboard: embedded SPA, /cluster, /node/{id}/ proxy
+├── internal/webui/      # dashboard: embedded SPA, /docs (Swagger UI), /cluster, /node/{id}/ proxy
 ├── web/                 # React + Vite + TS dashboard source
 ├── deploy/              # 3-node cluster: Dockerfile + docker-compose.yml
 ├── scripts/             # dev-sandbox + cluster-smoke helper scripts

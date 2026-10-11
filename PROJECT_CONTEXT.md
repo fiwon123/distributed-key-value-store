@@ -62,9 +62,11 @@ Build a hand-rolled Raft implementation and a small HTTP API layer that drives t
 | PUT | /v1/kv/{key} | Set key = value (body or JSON) |
 | GET | /v1/kv/{key} | Retrieve value (returns 404 if not found) |
 | DELETE | /v1/kv/{key} | Delete key (returns 204 or 200) |
-| GET | /v1/status | Return node state (role, term, leader, commit index, last applied, peer count)
-| GET | /cluster | Dashboard discovery: local node id + peer ids
+| GET | /v1/status | Return node state (role, term, leader, commit index, last applied, peer count) |
+| GET | /cluster | Dashboard discovery: local node id + peer ids |
 | GET | /node/{id}/... | Server-side proxy to a peer node's API |
+| GET | /v1/openapi.json | OpenAPI 3 contract for the HTTP API |
+| GET | /docs | Swagger UI for the HTTP API |
 
 ## Design Choices
 
