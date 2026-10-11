@@ -49,6 +49,24 @@ Docker Compose). Remaining: log compaction/snapshots.
 | `DELETE` | `/v1/kv/{key}` | Delete a key (204, or 404 if absent) |
 | `GET` | `/v1/status` | Node role, term, leader, commit index, last applied |
 | `GET` | `/cluster` | Dashboard discovery: local node id + peer ids |
+| `GET` | `/v1/openapi.json` | OpenAPI 3 contract for this API (JSON) |
+| `GET` | `/docs` | Swagger UI for the API (loads UI assets from a CDN) |
+
+### Interactive API testing
+
+Every node describes its own API and serves a Swagger UI page, so you can exercise
+the endpoints from a browser instead of hand-writing `curl`:
+
+```bash
+go run ./cmd/kvnode
+# then open http://localhost:8080/docs and try PUT/GET/DELETE and /v1/status
+```
+
+The raw contract is at `/v1/openapi.json` — it works offline and in any tool
+(Postman, Redoc, the Swagger editor). `/docs` loads the Swagger UI bundle from a
+CDN, so that page itself needs network access. A Go test
+(`internal/httpapi/openapi_test.go`) fails if the spec and the registered routes
+diverge, so the document cannot silently rot.
 
 ## Dashboard
 

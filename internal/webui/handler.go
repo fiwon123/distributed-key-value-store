@@ -1,5 +1,5 @@
-// Package webui serves the dashboard SPA, a /cluster discovery endpoint, and a
-// reverse proxy to the configured peer nodes.
+// Package webui serves the dashboard SPA, a Swagger UI page at /docs, a
+// /cluster discovery endpoint, and a reverse proxy to the configured peer nodes.
 //
 // Static assets are embedded (see embed.go). The SPA falls back to
 // placeholder.html only when the built index.html is absent, so a binary
@@ -59,9 +59,21 @@ func NewHandler(selfID string, peers map[string]string) (http.Handler, error) {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /cluster", h.cluster)
+	// Registered before the SPA catch-all ("/"); the more specific patterns win
+	// regardless of order in Go's ServeMux.
+	mux.HandleFunc("GET /docs", h.docs)
+	mux.HandleFunc("GET /docs/", h.docs)
 	mux.HandleFunc("/node/", h.proxy)
 	mux.HandleFunc("/", h.serveSPA)
 	return mux, nil
+}
+
+// docs serves the Swagger UI page, so operators can exercise the HTTP API
+// straight from a browser against the node they are talking to.
+func (h *handler) docs(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(docsHTML)
 }
 
 func (h *handler) cluster(w http.ResponseWriter, _ *http.Request) {

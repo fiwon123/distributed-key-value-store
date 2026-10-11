@@ -20,6 +20,7 @@ export default defineConfig({
       "/raft": { target: backend, changeOrigin: true },
       "/cluster": { target: backend, changeOrigin: true },
       "/node": { target: backend, changeOrigin: true },
+      "/docs": { target: backend, changeOrigin: true },
     },
   },
   test: {

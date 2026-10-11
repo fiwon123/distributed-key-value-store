@@ -29,6 +29,7 @@ on:
       - "go.sum"
       - "web/**"
       - "internal/webui/**"
+      - "internal/httpapi/**"
       - ".github/workflows/**"
   workflow_dispatch:
 

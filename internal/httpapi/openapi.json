@@ -1,0 +1,221 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "distributed-key-value-store",
+    "version": "0.1.0",
+    "description": "Educational distributed key-value store backed by a hand-rolled Raft log. Writes must reach the leader; a non-leader answers 503 with the current leader in the X-Raft-Leader header. Not production-ready: no TLS, no auth.\n\nThis document is validated against the registered routes by internal/httpapi/openapi_test.go, so it cannot silently drift from the handlers."
+  },
+  "paths": {
+    "/v1/kv/{key}": {
+      "parameters": [
+        {
+          "name": "key",
+          "in": "path",
+          "required": true,
+          "description": "The key to operate on.",
+          "schema": { "type": "string" }
+        }
+      ],
+      "put": {
+        "operationId": "putKey",
+        "summary": "Set a key to a value.",
+        "description": "The value is the raw request body. If Content-Type is application/json, the body must be {\"value\":\"...\"} and the value is read from the `value` field.",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "text/plain": {
+              "schema": { "type": "string" }
+            },
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/KeyValue" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The stored key and value.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/KeyValue" }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed JSON body.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "503": {
+            "description": "This node is not the leader or a quorum is unreachable. Retry against the node in X-Raft-Leader.",
+            "headers": {
+              "X-Raft-Leader": { "$ref": "#/components/headers/X-Raft-Leader" }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "getKey",
+        "summary": "Read a key.",
+        "responses": {
+          "200": {
+            "description": "The key and its value.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/KeyValue" }
+              }
+            }
+          },
+          "404": {
+            "description": "The key does not exist.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "503": {
+            "description": "This node is not the leader or a quorum is unreachable.",
+            "headers": {
+              "X-Raft-Leader": { "$ref": "#/components/headers/X-Raft-Leader" }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteKey",
+        "summary": "Delete a key.",
+        "responses": {
+          "204": {
+            "description": "The key was deleted."
+          },
+          "404": {
+            "description": "The key does not exist.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "503": {
+            "description": "This node is not the leader or a quorum is unreachable.",
+            "headers": {
+              "X-Raft-Leader": { "$ref": "#/components/headers/X-Raft-Leader" }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/status": {
+      "get": {
+        "operationId": "getStatus",
+        "summary": "Current node and cluster status.",
+        "responses": {
+          "200": {
+            "description": "Node role, term, leader, commit index, last applied, and peer count.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Status" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/openapi.json": {
+      "get": {
+        "operationId": "getOpenAPI",
+        "summary": "This OpenAPI document.",
+        "responses": {
+          "200": {
+            "description": "The OpenAPI 3 document describing this API.",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "headers": {
+      "X-Raft-Leader": {
+        "description": "The node id of the current leader, if known. Retry the request against the /node/{id} proxy for this node.",
+        "schema": { "type": "string" }
+      }
+    },
+    "schemas": {
+      "KeyValue": {
+        "type": "object",
+        "required": ["key", "value"],
+        "properties": {
+          "key": { "type": "string" },
+          "value": { "type": "string" }
+        }
+      },
+      "Status": {
+        "type": "object",
+        "required": ["id", "role", "term", "leader", "commitIndex", "lastApplied", "peers"],
+        "properties": {
+          "id": { "type": "string", "description": "This node's id." },
+          "role": { "type": "string", "description": "follower, candidate, leader, or single." },
+          "term": { "type": "integer", "format": "uint64", "description": "Current Raft term." },
+          "leader": { "type": "string", "description": "Known leader id, empty if unknown." },
+          "commitIndex": { "type": "integer", "format": "uint64", "description": "Highest committed log index." },
+          "lastApplied": { "type": "integer", "format": "uint64", "description": "Highest index applied to the state machine." },
+          "peers": { "type": "integer", "description": "Number of peer nodes." }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "required": ["error"],
+        "properties": {
+          "error": { "type": "string" }
+        }
+      }
+    }
+  }
+}

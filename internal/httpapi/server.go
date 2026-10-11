@@ -13,12 +13,20 @@
 package httpapi
 
 import (
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
 	"strings"
 )
+
+// openAPISpec is the API contract served at GET /v1/openapi.json. It must live
+// inside this package because go:embed cannot reference parent directories. The
+// drift test in openapi_test.go keeps it in sync with routes().
+//
+//go:embed openapi.json
+var openAPISpec []byte
 
 // Backend is the read/write interface the HTTP API drives.
 //
@@ -70,14 +78,35 @@ type Server struct {
 	mux     *http.ServeMux
 }
 
+// routeSpec ties an HTTP route to the handler that serves it. routes() is the
+// single source of truth for both registration and the OpenAPI drift test, so a
+// new endpoint is added in one place.
+type routeSpec struct {
+	Method  string
+	Pattern string
+	Handler http.HandlerFunc
+}
+
+// routes lists the public API endpoints. The root ping is deliberately absent:
+// it is not part of the documented API (and is shadowed by the webui in the
+// assembled node), so it is registered separately in New.
+func (s *Server) routes() []routeSpec {
+	return []routeSpec{
+		{http.MethodPut, "/v1/kv/{key}", s.handlePut},
+		{http.MethodGet, "/v1/kv/{key}", s.handleGet},
+		{http.MethodDelete, "/v1/kv/{key}", s.handleDelete},
+		{http.MethodGet, "/v1/status", s.handleStatus},
+		{http.MethodGet, "/v1/openapi.json", s.handleOpenAPI},
+	}
+}
+
 // New builds a Server and registers its routes.
 func New(backend Backend, status StatusProvider) *Server {
 	s := &Server{backend: backend, status: status}
 	mux := http.NewServeMux()
-	mux.HandleFunc("PUT /v1/kv/{key}", s.handlePut)
-	mux.HandleFunc("GET /v1/kv/{key}", s.handleGet)
-	mux.HandleFunc("DELETE /v1/kv/{key}", s.handleDelete)
-	mux.HandleFunc("GET /v1/status", s.handleStatus)
+	for _, r := range s.routes() {
+		mux.HandleFunc(r.Method+" "+r.Pattern, r.Handler)
+	}
 	mux.HandleFunc("GET /", s.handleRoot)
 	s.mux = mux
 	return s
@@ -130,6 +159,14 @@ func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleStatus(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, s.status.Status())
+}
+
+// handleOpenAPI serves the embedded OpenAPI document so tooling (and the /docs
+// Swagger UI page) can read the contract from a running node.
+func (s *Server) handleOpenAPI(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(openAPISpec)
 }
 
 func (s *Server) handleRoot(w http.ResponseWriter, r *http.Request) {

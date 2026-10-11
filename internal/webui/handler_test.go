@@ -53,6 +53,31 @@ func TestClusterListsPeers(t *testing.T) {
 	}
 }
 
+func TestDocsPage(t *testing.T) {
+	h := newTestHandler(t, "node1", nil)
+
+	for _, path := range []string{"/docs", "/docs/"} {
+		t.Run(path, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
+
+			if rec.Code != http.StatusOK {
+				t.Fatalf("status = %d, want 200", rec.Code)
+			}
+			if ct := rec.Header().Get("Content-Type"); !strings.Contains(ct, "text/html") {
+				t.Fatalf("Content-Type = %q, want text/html", ct)
+			}
+			body := rec.Body.String()
+			if !strings.Contains(body, "swagger-ui") {
+				t.Fatalf("docs page does not reference swagger-ui")
+			}
+			if !strings.Contains(body, "/v1/openapi.json") {
+				t.Fatalf("docs page does not point at the spec URL")
+			}
+		})
+	}
+}
+
 func TestProxyForwardsToPeer(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = io.WriteString(w, "path="+r.URL.Path)
