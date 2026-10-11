@@ -22,8 +22,9 @@ Users should be able to run a small cluster (3 nodes by default) and perform key
 - Consensus: hand-rolled Raft (educational — not production-ready)
 - Persistence: Raft log on disk; snapshots planned
 - HTTP API: `net/http` (`PUT/GET/DELETE /v1/kv/{key}`, `GET /v1/status`)
+- Dashboard: React + Vite + TypeScript (`web/`), embedded via `internal/webui`
 - Orchestration: Docker Compose (3-node local cluster)
-- Testing: `go test` (standard library `testing`)
+- Testing: `go test` (standard library `testing`); Vitest for the dashboard
 
 ### Core Architecture
 
@@ -43,25 +44,32 @@ Peer-to-peer RPC between nodes
 
 ## Project Structure
 
-**Not implemented yet.** The tree currently contains only workflow and
-configuration files. The intended layout, to be built in order (see
-Build Order in `PROJECT_CONTEXT.md`), is:
+The MVP is built in order (see Build Order in `PROJECT_CONTEXT.md`): single-node
+KV, then Raft roles, replication, persistence, and finally the operator
+dashboard. The tree:
 
 ```
 distributed-key-value-store/
 ├── cmd/kvnode/          # node entry point (flags, wiring, startup)
 ├── internal/httpapi/    # HTTP handlers for /v1/kv/{key} and /v1/status
-├── internal/raft/       # hand-rolled Raft (roles, elections, replication)
+├── internal/raft/       # hand-rolled Raft (roles, elections, replication, storage)
 ├── internal/kv/         # in-memory state machine
+├── internal/webui/      # dashboard: embedded SPA, /cluster, /node/{id}/ proxy
+├── web/                 # React + Vite + TS dashboard source
 ├── scripts/             # dev-sandbox helper scripts (entrypoint, token resolution, …)
-├── Dockerfile           # dev sandbox image (Go + gh + air fast reload)
+├── Dockerfile           # dev sandbox image (Go + gh + air + node)
 ├── docker-compose.yml   # single `dev` service for local development
-├── mise.toml            # toolchain pins (go, gh) — host + dev image
+├── mise.toml            # toolchain pins (go, gh, node) — host + dev image
 ├── .air.toml            # air fast-reload config (runs ./cmd/kvnode)
 ├── Makefile
 ├── opencode.json
 └── .github/workflows/ci.yml
 ```
+
+The dashboard is a Vite + React + TypeScript app in `web/`. `make web-build`
+compiles it to `internal/webui/dist`, which the node embeds via `go:embed`. The
+committed `internal/webui/dist/placeholder.html` keeps a plain `go build`
+working without Node; the built assets are gitignored.
 
 ## Development Commands
 
@@ -72,26 +80,35 @@ go test ./...            # run tests
 go test -tags=integration ./...  # opt-in multi-node failure tests
 gofmt -l .               # list unformatted files (empty = clean)
 go run ./cmd/kvnode      # run a node
+
+cd web                   # frontend
+npm ci                   # install from the lockfile
+npm run dev              # Vite dev server (proxies to a local node)
+npm run lint             # oxlint
+npm run format:check     # oxfmt (use `npm run format` to fix)
+npm test                 # vitest
+npm run build            # type-check + build into internal/webui/dist
 ```
 
 ### Run All Checks
 
 ```bash
-make check
+make check        # Go gate: gofmt -l, go vet, go test, go build
+make web-check    # frontend gate: npm ci, lint, format:check, test, build
 ```
 
-`make check` runs `gofmt -l`, `go vet`, `go test`, and `go build` — the same gate
-CI enforces. Prefer it over listing commands separately: agents follow whatever
-`check` runs, so a check missing from it is a check nobody performs. Add new
-checks to the `Makefile`.
+`make check` runs the same Go gate CI enforces; `make web-check` runs the
+frontend gate. Prefer them over listing commands separately: agents follow
+whatever a target runs, so a check missing from it is a check nobody performs.
+Add new checks to the `Makefile`.
 
 Multi-node failure tests are opt-in behind the `integration` build tag and are
 **not** part of `make check`. Run them with `make test-integration` (i.e.
 `go test -tags=integration ./...`).
 
-> **Until `go.mod` exists, `make check` skips the Go toolchain steps** with an
-> explicit "SKIPPED (skipped is not passed)" message — a skipped run verifies
-> nothing, so scaffolding PRs are judged by review, not by `make`.
+The frontend is optional to build: the node embeds
+`internal/webui/dist/placeholder.html` (committed), so a plain `go build ./...`
+works without Node. Run `make web-build` to embed the real dashboard.
 
 ### Dev sandbox
 
@@ -232,11 +249,12 @@ Agent definitions live in `opencode.json` and `.opencode/agents/`:
 - **plan** (primary): Analysis and planning without making changes — restricted to read-only subagents (explore, reviewer only)
 - **reviewer** (subagent): Reviews code for bugs, security, and regressions
 - **backend** (subagent): Implements the Go API, Raft, and state machine — edit scoped to `cmd/**` and `internal/**`
+- **frontend** (subagent): Implements the dashboard in `web/` and its Go embedding — edit scoped to `web/**` and `internal/webui/**`
 - **tester** (subagent): Writes and runs Go tests — edit scoped to `*_test.go` and `testdata/`
 
-This project is single-stack (Go, no frontend), so the `frontend` and `visual`
-agents from the engineering-workflow templates are deliberately not defined here —
-a subagent whose edit scope points at a directory that does not exist is an
+The `visual` agent from the engineering-workflow templates is deliberately not
+defined here — there is no design surface to own beyond the one dashboard, so a
+subagent whose edit scope points at a directory that does not exist is an
 expensive way to say nothing.
 
 Each agent's instructions live in exactly one place: the body of
