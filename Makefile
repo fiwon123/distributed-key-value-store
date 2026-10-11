@@ -5,8 +5,11 @@
 # SKIPPED (a skipped run is not a passed run), keeping scaffolding PRs usable.
 
 GO ?= go
+NPM ?= npm
+WEB_DIR ?= web
 
 .PHONY: help check fmt vet test test-integration build run clean \
+        web-install web-build web-dev web-lint web-test web-check \
         preflight dev-up dev-down dev-restart dev-log dev-build reset \
         shell opencode opencode-auto dev-shell dev-opencode dev-opencode-auto
 
@@ -48,12 +51,45 @@ build:
 	@echo "==> go build"
 	$(GO) build ./...
 
-run:
-	$(GO) run ./cmd/kvnode
-
 clean:
 	@echo "cleaning"
 	rm -f ./kvnode
+
+# --- Dashboard (web/ -> internal/webui/dist) -----------------------------------
+# The Go binary embeds internal/webui/dist via //go:embed. Until `make web-build`
+# runs, that directory only holds placeholder.html (committed).
+
+## web-install: install frontend dependencies from the lockfile
+web-install:
+	@echo "==> npm ci ($(WEB_DIR))"
+	cd $(WEB_DIR) && $(NPM) ci
+
+## web-install-update: resolve deps and refresh package-lock.json
+web-install-update:
+	@echo "==> npm install ($(WEB_DIR))"
+	cd $(WEB_DIR) && $(NPM) install
+
+web-dev: ## Run the Vite dev server (proxies to a locally running node)
+	cd $(WEB_DIR) && $(NPM) run dev
+
+web-build: ## Build the dashboard into internal/webui/dist for embedding
+	@echo "==> vite build ($(WEB_DIR))"
+	cd $(WEB_DIR) && $(NPM) run build
+
+web-lint: ## Lint/format-check the frontend
+	cd $(WEB_DIR) && $(NPM) run lint && $(NPM) run format:check
+
+web-test: ## Run frontend unit tests
+	cd $(WEB_DIR) && $(NPM) test
+
+## web-check: frontend gate — install, lint, test, build (used by CI)
+web-check:
+	@$(MAKE) web-install
+	cd $(WEB_DIR) && $(NPM) run lint && $(NPM) run format:check \
+	  && $(NPM) test && $(NPM) run build
+
+run:
+	$(GO) run ./cmd/kvnode
 
 # --- Dev sandbox (docker compose) ----------------------------------------------
 

@@ -2,7 +2,7 @@
 
 # Dev sandbox image — distributed-key-value-store.
 # Go toolchain comes from the base image; `air` is installed for fast reload.
-# GitHub CLI is pinned to the same version as mise.toml.
+# GitHub CLI and Node.js are pinned to the same versions as mise.toml.
 
 FROM golang:1.26-bookworm
 
@@ -11,6 +11,7 @@ FROM golang:1.26-bookworm
 # instruction after FROM sees it empty, so a download URL built from an unset
 # version 404s at build time in a way no linter catches.
 ARG GH_CLI_VERSION=v2.102.0
+ARG NODE_VERSION=22.23.3
 ARG TARGETARCH
 # The host uid/gid, forwarded as build args by docker-compose.yml so the image
 # can create a passwd entry + home matching the host user (kills "I have no
@@ -24,6 +25,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     git \
     zsh \
+    xz-utils \
     && rm -rf /var/lib/apt/lists/*
 
 RUN if [ -z "$TARGETARCH" ]; then \
@@ -43,6 +45,18 @@ RUN if [ -z "$TARGETARCH" ]; then \
 # writes /go/bin, which is root-owned; the runtime user only needs to EXECUTE
 # the result, and GOPATH/GOCACHE are redirected to /workspace/.go by compose.
 RUN go install github.com/air-verse/air@v1.67.4
+
+# Node.js for the Vite dashboard in web/ (same major as mise.toml). Installed
+# from the official tarball because the golang base image ships no node.
+RUN case "$(dpkg --print-architecture)" in \
+      amd64) node_arch=x64 ;; \
+      arm64) node_arch=arm64 ;; \
+      *) echo "Unsupported architecture: $(dpkg --print-architecture)" >&2; exit 1 ;; \
+    esac \
+    && curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${node_arch}.tar.xz" -o /tmp/node.tar.xz \
+    && tar -xJf /tmp/node.tar.xz -C /usr/local --strip-components=1 --no-same-owner \
+    && rm /tmp/node.tar.xz \
+    && node --version && npm --version
 
 # --- runtime user (matches the host uid/gid from docker-compose.yml) ---
 # The compose service runs as `user: "${HOST_UID}:${HOST_GID}"`. Without a
