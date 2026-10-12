@@ -84,6 +84,42 @@ func TestStoreDelete(t *testing.T) {
 	}
 }
 
+func TestStoreKeys(t *testing.T) {
+	s := New()
+	s.Put("beta", "2")
+	s.Put("alpha", "1")
+	s.Put("gamma", "3")
+
+	got := s.Keys()
+	want := []string{"alpha", "beta", "gamma"}
+	if len(got) != len(want) {
+		t.Fatalf("Keys() = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("Keys() = %v, want %v", got, want)
+		}
+	}
+}
+
+func TestStoreKeysEmpty(t *testing.T) {
+	if got := New().Keys(); len(got) != 0 {
+		t.Fatalf("Keys() on empty store = %v, want empty", got)
+	}
+}
+
+func TestStoreKeysSnapshotIndependent(t *testing.T) {
+	s := New()
+	s.Put("a", "1")
+
+	keys := s.Keys()
+	s.Put("b", "2")
+
+	if len(keys) != 1 || keys[0] != "a" {
+		t.Fatalf("Keys() result changed after a later Put: %v", keys)
+	}
+}
+
 func TestStoreSnapshotRestoreRoundTrip(t *testing.T) {
 	s := New()
 	s.Put("a", "1")
