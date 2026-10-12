@@ -223,6 +223,12 @@ The docker compose **dev sandbox** gives you the full toolchain (Go, Node,
 `gh`, `air` fast reload) with your host GitHub config mounted read-only and
 `GH_TOKEN`/`GITHUB_TOKEN` forwarded at runtime — never baked into the image.
 
+Copy the committed template to configure the sandbox (`.env` stays gitignored):
+
+```bash
+cp .env.example .env   # optional: HOST_PORT, HOST_HOME, GH_TOKEN/GITHUB_TOKEN, VITE_BACKEND
+```
+
 ```bash
 make dev-up        # build + start the sandbox (needs docker on the host)
 make dev-restart   # restart after Dockerfile/deps changes
