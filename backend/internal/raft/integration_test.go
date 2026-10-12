@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fiwon123/distributed-key-value-store/internal/kv"
+	"github.com/fiwon123/distributed-key-value-store/backend/internal/kv"
 )
 
 // These tests drive the full path — elections, replication, commit, apply —

@@ -13,7 +13,7 @@ assignees: ["fiwon123"]
 ## To Reproduce
 
 ```bash
-# exact commands (e.g. go test ./... or go run ./cmd/kvnode ...)
+# exact commands (e.g. go test ./... or go run ./backend/cmd/kvnode ...)
 ```
 
 ## Expected behaviour

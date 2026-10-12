@@ -46,7 +46,7 @@ RUN if [ -z "$TARGETARCH" ]; then \
 # the result, and GOPATH/GOCACHE are redirected to /workspace/.go by compose.
 RUN go install github.com/air-verse/air@v1.67.4
 
-# Node.js for the Vite dashboard in web/ (same major as mise.toml). Installed
+# Node.js for the Vite dashboard in frontend/ (same major as mise.toml). Installed
 # from the official tarball because the golang base image ships no node.
 RUN case "$(dpkg --print-architecture)" in \
       amd64) node_arch=x64 ;; \

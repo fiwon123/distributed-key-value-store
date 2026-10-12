@@ -75,7 +75,7 @@ wait_for_leader() {
 }
 
 log "building kvnode"
-go build -o "$WORK/kvnode" ./cmd/kvnode
+go build -o "$WORK/kvnode" ./backend/cmd/kvnode
 
 # Start each node with its peers; node i's peers are all other nodes.
 for i in "${!NODE_IDS[@]}"; do

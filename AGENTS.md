@@ -22,7 +22,7 @@ Users should be able to run a small cluster (3 nodes by default) and perform key
 - Consensus: hand-rolled Raft (educational — not production-ready)
 - Persistence: Raft log on disk; automatic snapshots + log compaction
 - HTTP API: `net/http` (`PUT/GET/DELETE /v1/kv/{key}`, `GET /v1/status`), with an OpenAPI contract at `GET /v1/openapi.json` and Swagger UI at `GET /docs`
-- Dashboard: React + Vite + TypeScript (`web/`), embedded via `internal/webui`
+- Dashboard: React + Vite + TypeScript (`frontend/`), embedded via `backend/internal/webui`
 - Orchestration: Docker Compose (3-node local cluster)
 - Testing: `go test` (standard library `testing`); Vitest for the dashboard
 
@@ -50,27 +50,30 @@ dashboard. The tree:
 
 ```
 distributed-key-value-store/
-├── cmd/kvnode/          # node entry point (flags, wiring, startup)
-├── internal/httpapi/    # HTTP handlers: /v1/kv/{key}, /v1/status, /v1/openapi.json
-├── internal/raft/       # hand-rolled Raft (roles, elections, replication, storage)
-├── internal/kv/         # in-memory state machine
-├── internal/webui/      # dashboard: embedded SPA, /docs (Swagger UI), /cluster, /node/{id}/ proxy
-├── web/                 # React + Vite + TS dashboard source
+├── backend/
+│   ├── cmd/kvnode/      # node entry point (flags, wiring, startup)
+│   └── internal/
+│       ├── httpapi/     # HTTP handlers: /v1/kv/{key}, /v1/status, /v1/openapi.json
+│       ├── raft/        # hand-rolled Raft (roles, elections, replication, storage)
+│       ├── kv/          # in-memory state machine
+│       └── webui/       # dashboard: embedded SPA, /docs (Swagger UI), /cluster, /node/{id}/ proxy
+├── frontend/            # React + Vite + TS dashboard source
 ├── deploy/              # 3-node cluster: Dockerfile + docker-compose.yml
 ├── scripts/             # dev-sandbox + cluster-smoke helper scripts
 ├── Dockerfile           # dev sandbox image (Go + gh + air + node)
 ├── docker-compose.yml   # single `dev` service for local development
+├── go.mod  go.sum       # Go module root stays at the repo root
 ├── mise.toml            # toolchain pins (go, gh, node) — host + dev image
-├── .air.toml            # air fast-reload config (runs ./cmd/kvnode)
+├── .air.toml            # air fast-reload config (runs ./backend/cmd/kvnode)
 ├── Makefile
 ├── opencode.json
 └── .github/workflows/ci.yml
 ```
 
-The dashboard is a Vite + React + TypeScript app in `web/`. `make web-build`
-compiles it to `internal/webui/dist`, which the node embeds via `go:embed`. The
-committed `internal/webui/dist/placeholder.html` keeps a plain `go build`
-working without Node; the built assets are gitignored.
+The dashboard is a Vite + React + TypeScript app in `frontend/`. `make web-build`
+compiles it to `backend/internal/webui/dist`, which the node embeds via
+`go:embed`. The committed `backend/internal/webui/dist/placeholder.html` keeps a
+plain `go build` working without Node; the built assets are gitignored.
 
 ## Development Commands
 
@@ -80,15 +83,15 @@ go vet ./...             # static analysis
 go test ./...            # run tests
 go test -tags=integration ./...  # opt-in multi-node failure tests
 gofmt -l .               # list unformatted files (empty = clean)
-go run ./cmd/kvnode      # run a node
+go run ./backend/cmd/kvnode      # run a node
 
-cd web                   # frontend
+cd frontend              # frontend
 npm ci                   # install from the lockfile
 npm run dev              # Vite dev server (proxies to a local node)
 npm run lint             # oxlint
 npm run format:check     # oxfmt (use `npm run format` to fix)
 npm test                 # vitest
-npm run build            # type-check + build into internal/webui/dist
+npm run build            # type-check + build into backend/internal/webui/dist
 ```
 
 ### Run All Checks
@@ -108,7 +111,7 @@ Multi-node failure tests are opt-in behind the `integration` build tag and are
 `go test -tags=integration ./...`).
 
 The frontend is optional to build: the node embeds
-`internal/webui/dist/placeholder.html` (committed), so a plain `go build ./...`
+`backend/internal/webui/dist/placeholder.html` (committed), so a plain `go build ./...`
 works without Node. Run `make web-build` to embed the real dashboard.
 
 ### 3-node cluster
@@ -257,8 +260,8 @@ Agent definitions live in `opencode.json` and `.opencode/agents/`:
 - **build** (primary): Full development work with all tools enabled
 - **plan** (primary): Analysis and planning without making changes — restricted to read-only subagents (explore, reviewer only)
 - **reviewer** (subagent): Reviews code for bugs, security, and regressions
-- **backend** (subagent): Implements the Go API, Raft, and state machine — edit scoped to `cmd/**` and `internal/**`
-- **frontend** (subagent): Implements the dashboard in `web/` and its Go embedding — edit scoped to `web/**` and `internal/webui/**`
+- **backend** (subagent): Implements the Go API, Raft, and state machine — edit scoped to `backend/cmd/**` and `backend/internal/**`
+- **frontend** (subagent): Implements the dashboard in `frontend/` and its Go embedding — edit scoped to `frontend/**` and `backend/internal/webui/**`
 - **tester** (subagent): Writes and runs Go tests — edit scoped to `*_test.go` and `testdata/`
 
 The `visual` agent from the engineering-workflow templates is deliberately not

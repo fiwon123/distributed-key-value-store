@@ -45,11 +45,11 @@ air.log
 __pycache__/
 
 # Frontend
-web/node_modules/
-web/dist/
-web/coverage/
-/internal/webui/dist/*
-!/internal/webui/dist/placeholder.html
+frontend/node_modules/
+frontend/dist/
+frontend/coverage/
+/backend/internal/webui/dist/*
+!/backend/internal/webui/dist/placeholder.html
 
 # Editor/IDE
 # .idea/

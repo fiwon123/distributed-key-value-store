@@ -21,17 +21,17 @@
 
 - **Framework**: the standard library `testing` package (`go test`)
 - **Location**: `*_test.go` files next to the code they test
-  (e.g. `internal/kv/store_test.go`)
+  (e.g. `backend/internal/kv/store_test.go`)
 - **Run**: `go test ./...`
 
 #### Test Structure
 
 ```
-internal/kv/
+backend/internal/kv/
 ├── store.go
 └── store_test.go        # tests for the package it sits in
 
-cmd/kvnode/
+backend/cmd/kvnode/
 ├── main.go
 └── main_test.go
 ```

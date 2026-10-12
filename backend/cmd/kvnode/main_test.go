@@ -4,9 +4,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/fiwon123/distributed-key-value-store/internal/httpapi"
-	"github.com/fiwon123/distributed-key-value-store/internal/kv"
-	"github.com/fiwon123/distributed-key-value-store/internal/raft"
+	"github.com/fiwon123/distributed-key-value-store/backend/internal/httpapi"
+	"github.com/fiwon123/distributed-key-value-store/backend/internal/kv"
+	"github.com/fiwon123/distributed-key-value-store/backend/internal/raft"
 )
 
 func TestParsePeers(t *testing.T) {

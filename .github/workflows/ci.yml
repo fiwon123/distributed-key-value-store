@@ -1,7 +1,8 @@
 name: CI
 
 # Go and frontend CI for this project. `go-check` runs the Go toolchain
-# (gofmt, vet, test, build); `web-check` runs the Vite/React-TS gate in web/.
+# (gofmt, vet, test, build); `web-check` runs the Vite/React-TS gate in
+# frontend/.
 #
 # Action majors are pinned deliberately. Bump them as a reviewed change:
 #   actions/checkout  v7
@@ -27,9 +28,9 @@ on:
       - "**/*.go"
       - "go.mod"
       - "go.sum"
-      - "web/**"
-      - "internal/webui/**"
-      - "internal/httpapi/**"
+      - "frontend/**"
+      - "backend/internal/webui/**"
+      - "backend/internal/httpapi/**"
       - ".github/workflows/**"
   workflow_dispatch:
 
@@ -78,7 +79,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: web
+        working-directory: frontend
     steps:
       - uses: actions/checkout@v7
 
@@ -87,7 +88,7 @@ jobs:
         with:
           node-version: "22"
           cache: npm
-          cache-dependency-path: web/package-lock.json
+          cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
         run: npm ci

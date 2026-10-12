@@ -3,7 +3,7 @@
   "info": {
     "title": "distributed-key-value-store",
     "version": "0.1.0",
-    "description": "Educational distributed key-value store backed by a hand-rolled Raft log. Writes must reach the leader; a non-leader answers 503 with the current leader in the X-Raft-Leader header. Not production-ready: no TLS, no auth.\n\nThis document is validated against the registered routes by internal/httpapi/openapi_test.go, so it cannot silently drift from the handlers."
+    "description": "Educational distributed key-value store backed by a hand-rolled Raft log. Writes must reach the leader; a non-leader answers 503 with the current leader in the X-Raft-Leader header. Not production-ready: no TLS, no auth.\n\nThis document is validated against the registered routes by backend/internal/httpapi/openapi_test.go, so it cannot silently drift from the handlers."
   },
   "paths": {
     "/v1/kv/{key}": {

@@ -11,7 +11,7 @@ export default defineConfig({
     // The Go server embeds this directory via //go:embed. Keep emptyOutDir
     // false so the committed placeholder.html survives a production build —
     // the built index.html takes precedence at serve time.
-    outDir: "../internal/webui/dist",
+    outDir: "../backend/internal/webui/dist",
     emptyOutDir: false,
   },
   server: {

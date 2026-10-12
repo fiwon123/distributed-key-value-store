@@ -6,7 +6,8 @@ version: 2
 # release branch. See AGENTS.md -> Two-tier branch model.
 
 updates:
-  # Go module dependencies (module root is the repo root: COMPONENTS := .)
+  # Go module dependencies (module root is the repo root; Go sources live under
+  # backend/ but go.mod stays at the root).
   - package-ecosystem: "gomod"
     directory: "/"
     target-branch: "dev"
@@ -16,6 +17,19 @@ updates:
     labels:
       - "dependencies"
       - "go"
+    commit-message:
+      prefix: "deps"
+
+  # Frontend dependencies (React + Vite + TypeScript dashboard).
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    target-branch: "dev"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    labels:
+      - "dependencies"
+      - "frontend"
     commit-message:
       prefix: "deps"
 

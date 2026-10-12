@@ -59,14 +59,14 @@ Every node describes its own API and serves a Swagger UI page, so you can exerci
 the endpoints from a browser instead of hand-writing `curl`:
 
 ```bash
-go run ./cmd/kvnode
+go run ./backend/cmd/kvnode
 # then open http://localhost:8080/docs and try PUT/GET/DELETE and /v1/status
 ```
 
 The raw contract is at `/v1/openapi.json` — it works offline and in any tool
 (Postman, Redoc, the Swagger editor). `/docs` loads the Swagger UI bundle from a
 CDN, so that page itself needs network access. A Go test
-(`internal/httpapi/openapi_test.go`) fails if the spec and the registered routes
+(`backend/internal/httpapi/openapi_test.go`) fails if the spec and the registered routes
 diverge, so the document cannot silently rot.
 
 ## Dashboard
@@ -85,8 +85,8 @@ not retry a `503`, so a non-leader answer is visible as-is.
 Build it once; the node embeds the output:
 
 ```bash
-make web-build    # vite build -> internal/webui/dist (embedded via go:embed)
-go run ./cmd/kvnode -id node1 -http :8080
+make web-build    # vite build -> backend/internal/webui/dist (embedded via go:embed)
+go run ./backend/cmd/kvnode -id node1 -http :8080
 ```
 
 Without a build, the binary serves a committed placeholder page, so
@@ -95,7 +95,7 @@ Without a build, the binary serves a committed placeholder page, so
 ## Run a single node
 
 ```bash
-go run ./cmd/kvnode -id node1 -http :8080
+go run ./backend/cmd/kvnode -id node1 -http :8080
 
 # in another shell
 curl -i -X PUT --data-binary 'hello' http://localhost:8080/v1/kv/greeting
@@ -186,7 +186,7 @@ go vet ./...         # static analysis
 gofmt -l .           # formatting (empty output = clean)
 make check           # all of the above (Go gate)
 
-cd web
+cd frontend
 npm ci               # install frontend deps
 npm run dev          # Vite dev server (proxies to a running node)
 npm test             # frontend unit tests
