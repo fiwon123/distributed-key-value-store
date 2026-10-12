@@ -32,6 +32,51 @@ log compaction, the `InstallSnapshot` RPC that catches up a follower behind the
 compacted boundary, in-process leader-failure tests, the cluster dashboard, and a
 runnable 3-node cluster (local processes or Docker Compose).
 
+## Quickstart Tutorial
+
+### Prerequisites
+- Go 1.23+ (as specified in go.mod)
+- Node.js 20+ (for frontend builds)
+- Docker (optional, for sandbox and containerized cluster)
+
+### 1. Set up environment (optional)
+```bash
+cp .env.example .env  # customize if needed
+```
+
+### 2. Run a single node
+```bash
+go run ./backend/cmd/kvnode -id node1 -http :8080
+```
+Open http://localhost:8080 in your browser to see the dashboard.
+
+### 3. Try basic operations
+```bash
+# Set a key
+curl -X PUT http://localhost:8080/v1/kv/greeting -d '{"value":"hello"}' -H "Content-Type: application/json"
+
+# Get it back
+curl http://localhost:8080/v1/kv/greeting
+
+# Delete it
+curl -X DELETE http://localhost:8080/v1/kv/greeting
+
+# Check status
+curl http://localhost:8080/v1/status
+```
+
+### 4. Run a 3-node cluster (local processes)
+```bash
+scripts/cluster-smoke.sh
+```
+This starts 3 nodes, waits for a leader, writes a key, kills the leader, waits for a new leader, and reads the committed value back - demonstrating failure recovery.
+
+### 5. Explore the dashboard
+- **Cluster tab**: View all nodes, their roles, terms, leader, and commit indices
+- **API tab**: Use the playground to test API endpoints interactively
+- **About tab**: Quick reference and tutorial
+- **API Docs**: Visit http://localhost:8080/docs for Swagger UI
+
 ## Stack
 
 - **Language**: Go (standard toolchain)
@@ -177,6 +222,12 @@ end to end.
 The docker compose **dev sandbox** gives you the full toolchain (Go, Node,
 `gh`, `air` fast reload) with your host GitHub config mounted read-only and
 `GH_TOKEN`/`GITHUB_TOKEN` forwarded at runtime — never baked into the image.
+
+Copy the committed template to configure the sandbox (`.env` stays gitignored):
+
+```bash
+cp .env.example .env   # optional: HOST_PORT, HOST_HOME, GH_TOKEN/GITHUB_TOKEN, VITE_BACKEND
+```
 
 ```bash
 make dev-up        # build + start the sandbox (needs docker on the host)
