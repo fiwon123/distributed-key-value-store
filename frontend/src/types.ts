@@ -1,4 +1,4 @@
-// Shapes returned by the node's HTTP API (see internal/httpapi).
+// Shapes returned by the node's HTTP API (see backend/internal/httpapi).
 export interface Status {
   id: string;
   role: string;
@@ -9,7 +9,7 @@ export interface Status {
   peers: number;
 }
 
-// /cluster is served by internal/webui: the local node plus its peer ids.
+// /cluster is served by backend/internal/webui: the local node plus its peer ids.
 export interface ClusterInfo {
   self: string;
   peers: string[];

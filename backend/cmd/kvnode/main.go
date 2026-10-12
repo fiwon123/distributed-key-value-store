@@ -19,10 +19,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/fiwon123/distributed-key-value-store/internal/httpapi"
-	"github.com/fiwon123/distributed-key-value-store/internal/kv"
-	"github.com/fiwon123/distributed-key-value-store/internal/raft"
-	"github.com/fiwon123/distributed-key-value-store/internal/webui"
+	"github.com/fiwon123/distributed-key-value-store/backend/internal/httpapi"
+	"github.com/fiwon123/distributed-key-value-store/backend/internal/kv"
+	"github.com/fiwon123/distributed-key-value-store/backend/internal/raft"
+	"github.com/fiwon123/distributed-key-value-store/backend/internal/webui"
 )
 
 func main() {

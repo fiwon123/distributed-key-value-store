@@ -88,7 +88,7 @@ Build a hand-rolled Raft implementation and a small HTTP API layer that drives t
 
 ## Topology
 
-- **Components**: `.` (single component, flat Go layout)
+- **Components**: `.` (monorepo: `backend/` Go sources + `frontend/` React dashboard; `go.mod` at the repo root)
 
 ## Key Commands
 
@@ -97,7 +97,7 @@ go mod tidy
 go build ./...
 go vet ./...
 go test ./...
-go run ./cmd/kvnode
+go run ./backend/cmd/kvnode
 make check          # local gate (Go steps skip until go.mod exists)
 make dev-up         # start the dev sandbox (docker compose)
 make dev-shell      # shell inside the sandbox (alias: make shell)

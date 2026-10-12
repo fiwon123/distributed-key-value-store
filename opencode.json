@@ -202,8 +202,8 @@
       "mode": "subagent",
       "permission": {
         "edit": {
-          "internal/**": "allow",
-          "cmd/**": "allow"
+          "backend/internal/**": "allow",
+          "backend/cmd/**": "allow"
         },
         "bash": {
           "*": "ask",
@@ -283,12 +283,12 @@
       }
     },
     "frontend": {
-      "description": "Implements the React + Vite + TypeScript dashboard in web/ and its Go embedding",
+      "description": "Implements the React + Vite + TypeScript dashboard in frontend/ and its Go embedding",
       "mode": "subagent",
       "permission": {
         "edit": {
-          "web/**": "allow",
-          "internal/webui/**": "allow"
+          "frontend/**": "allow",
+          "backend/internal/webui/**": "allow"
         },
         "bash": {
           "*": "ask",

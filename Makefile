@@ -6,7 +6,7 @@
 
 GO ?= go
 NPM ?= npm
-WEB_DIR ?= web
+WEB_DIR ?= frontend
 
 .PHONY: help check fmt vet test test-integration build run clean \
         web-install web-build web-dev web-lint web-test web-check \
@@ -56,9 +56,9 @@ clean:
 	@echo "cleaning"
 	rm -f ./kvnode
 
-# --- Dashboard (web/ -> internal/webui/dist) -----------------------------------
-# The Go binary embeds internal/webui/dist via //go:embed. Until `make web-build`
-# runs, that directory only holds placeholder.html (committed).
+# --- Dashboard (frontend/ -> backend/internal/webui/dist) ----------------------
+# The Go binary embeds backend/internal/webui/dist via //go:embed. Until
+# `make web-build` runs, that directory only holds placeholder.html (committed).
 
 ## web-install: install frontend dependencies from the lockfile
 web-install:
@@ -73,7 +73,7 @@ web-install-update:
 web-dev: ## Run the Vite dev server (proxies to a locally running node)
 	cd $(WEB_DIR) && $(NPM) run dev
 
-web-build: ## Build the dashboard into internal/webui/dist for embedding
+web-build: ## Build the dashboard into backend/internal/webui/dist for embedding
 	@echo "==> vite build ($(WEB_DIR))"
 	cd $(WEB_DIR) && $(NPM) run build
 
@@ -108,7 +108,7 @@ cluster-logs: ## Follow the 3-node cluster logs
 	docker compose -f deploy/docker-compose.yml logs -f
 
 run:
-	$(GO) run ./cmd/kvnode
+	$(GO) run ./backend/cmd/kvnode
 
 # --- Dev sandbox (docker compose) ----------------------------------------------
 
