@@ -65,3 +65,34 @@ export async function deleteKey(key: string): Promise<void> {
     throw new Error(await errorMessage(res));
   }
 }
+
+// RawResponse is the unprocessed result of a request, surfaced to the API
+// playground. Unlike request(), nothing is retried: a 503 from a non-leader is
+// returned as-is so the caller can see the status and the X-Raft-Leader header.
+export interface RawResponse {
+  status: number;
+  statusText: string;
+  ok: boolean;
+  leader: string;
+  body: string;
+}
+
+export async function rawRequest(
+  method: string,
+  path: string,
+  body?: string,
+): Promise<RawResponse> {
+  const init: RequestInit = { method };
+  if (body) {
+    init.headers = { "Content-Type": "application/json" };
+    init.body = body;
+  }
+  const res = await fetch(path, init);
+  return {
+    status: res.status,
+    statusText: res.statusText,
+    ok: res.ok,
+    leader: res.headers.get("X-Raft-Leader") ?? "",
+    body: await res.text(),
+  };
+}

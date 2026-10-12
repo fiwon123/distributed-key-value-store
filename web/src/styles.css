@@ -142,3 +142,92 @@ button:disabled {
 .ok {
   color: #4fd18b;
 }
+
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin: 1.25rem 0 1rem;
+  border-bottom: 1px solid #2a2f3a;
+}
+
+.tab {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  color: #9aa4b2;
+  padding: 0.4rem 0.9rem;
+}
+
+.tab--active {
+  color: #e6e6e6;
+  border-bottom-color: #4f8cff;
+}
+
+.playground {
+  border: 1px solid #2a2f3a;
+  border-radius: 0.6rem;
+  padding: 1rem;
+  background: #161a21;
+}
+
+.playground form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: end;
+}
+
+.playground label {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.8rem;
+  gap: 0.25rem;
+}
+
+.playground__path {
+  flex: 1 1 16rem;
+}
+
+.playground__path input {
+  width: 100%;
+}
+
+.playground__body {
+  flex: 1 1 100%;
+}
+
+.playground__body textarea {
+  width: 100%;
+  resize: vertical;
+  padding: 0.4rem 0.5rem;
+  border-radius: 0.4rem;
+  border: 1px solid #2a2f3a;
+  background: #0f1115;
+  color: inherit;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+select {
+  padding: 0.4rem 0.5rem;
+  border-radius: 0.4rem;
+  border: 1px solid #2a2f3a;
+  background: #0f1115;
+  color: inherit;
+}
+
+.response {
+  margin-top: 1rem;
+  border-top: 1px solid #2a2f3a;
+  padding-top: 0.75rem;
+}
+
+.response__body {
+  margin: 0.5rem 0 0;
+  padding: 0.75rem;
+  border-radius: 0.4rem;
+  background: #0f1115;
+  overflow: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+}
