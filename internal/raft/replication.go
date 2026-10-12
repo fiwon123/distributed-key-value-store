@@ -86,16 +86,33 @@ func (n *Node) replicateAll() {
 		index int
 		args  AppendEntriesArgs
 	}
+	type snapRequest struct {
+		index int
+		args  InstallSnapshotArgs
+	}
 	requests := make([]request, 0, len(n.peers))
+	snapRequests := make([]snapRequest, 0, len(n.peers))
 	for i := range n.peers {
 		next := n.nextIndex[i]
 		if next < 1 {
 			next = 1
 		}
-		if next <= n.logStart {
-			// The peer needs entries we already compacted into a snapshot; we
-			// cannot reconstruct them here. It stays behind until InstallSnapshot
-			// exists (follow-up issue).
+		if next <= n.lastIncludedIndex {
+			// The peer needs entries we already compacted into a snapshot. Send
+			// the snapshot instead of the (unavailable) log prefix.
+			if n.snapshotMeta.Index == 0 {
+				continue // nothing to send yet
+			}
+			snapRequests = append(snapRequests, snapRequest{
+				index: i,
+				args: InstallSnapshotArgs{
+					Term:              term,
+					LeaderID:          n.id,
+					LastIncludedIndex: n.lastIncludedIndex,
+					LastIncludedTerm:  n.lastIncludedTerm,
+					Data:              append([]byte(nil), n.snapshotData...),
+				},
+			})
 			continue
 		}
 		prevIndex := next - 1
@@ -147,6 +164,29 @@ func (n *Node) replicateAll() {
 			// Back off and retry on the next heartbeat/propose.
 			n.nextIndex[req.index]--
 		}
+		n.mu.Unlock()
+	}
+
+	// Ship the snapshot to peers that fell behind the compacted boundary.
+	for _, req := range snapRequests {
+		reply, err := n.transport.InstallSnapshot(context.Background(), n.peers[req.index], req.args)
+		if err != nil {
+			continue
+		}
+		n.mu.Lock()
+		if reply.Term > n.term {
+			n.becomeFollowerLocked(reply.Term)
+			n.mu.Unlock()
+			continue
+		}
+		if n.role != Leader {
+			n.mu.Unlock()
+			continue
+		}
+		if req.args.LastIncludedIndex > n.matchIndex[req.index] {
+			n.matchIndex[req.index] = req.args.LastIncludedIndex
+		}
+		n.nextIndex[req.index] = n.matchIndex[req.index] + 1
 		n.mu.Unlock()
 	}
 }

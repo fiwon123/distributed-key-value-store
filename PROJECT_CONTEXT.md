@@ -51,7 +51,7 @@ Build a hand-rolled Raft implementation and a small HTTP API layer that drives t
 - Commit + apply (apply only committed entries)
 - In-memory KV state machine (map[string]string)
 - Basic persistence of log entries (optional early, required before "persistence" phase)
-- Automatic snapshot after a configurable number of applied entries, with log compaction and restart recovery from the snapshot + tail; `InstallSnapshot` RPC for lagging followers is the remaining follow-up
+- Automatic snapshot after a configurable number of applied entries, with log compaction and restart recovery from the snapshot + tail; `InstallSnapshot` RPC so a leader can catch up a lagging follower behind the compacted boundary
 - Web dashboard: cluster overview + key-value console, embedded in the node binary
 - 3-node local cluster: local processes (smoke script) or Docker Compose
 
@@ -75,7 +75,7 @@ Build a hand-rolled Raft implementation and a small HTTP API layer that drives t
 - **Log is the WAL**: all state changes go through Raft log; applying committed log entries updates the KV map.
 - **Leader reads (MVP)**: reads go to leader to avoid stale reads in earliest stages; can be revisited later.
 - **Quorum loss stops writes**: if a leader cannot reach majority, writes are rejected (or blocked per Raft) — not best-effort.
-- **Snapshots after persistence**: automation snapshots the state machine after a configurable number of applied entries (1000 by default) and compacts the log prefix; restart restores the snapshot and replays only the tail. The `InstallSnapshot` RPC is the remaining follow-up.
+- **Snapshots after persistence**: automation snapshots the state machine after a configurable number of applied entries (1000 by default) and compacts the log prefix; restart restores the snapshot and replays only the tail. A leader ships its snapshot to a follower that has fallen behind the compacted boundary via the `InstallSnapshot` RPC.
 
 ## Build Order
 

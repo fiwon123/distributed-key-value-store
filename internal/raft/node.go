@@ -143,6 +143,12 @@ type Node struct {
 	lastIncludedIndex uint64
 	lastIncludedTerm  uint64
 
+	// snapshotMeta/snapshotData cache the most recent snapshot image so a leader
+	// can ship it to a lagging follower (InstallSnapshot) without re-invoking
+	// SnapshotFunc. Guards: n.mu.
+	snapshotMeta SnapshotMeta
+	snapshotData []byte
+
 	// Leader-only replication progress, parallel to peers.
 	nextIndex  []uint64
 	matchIndex []uint64
@@ -213,6 +219,8 @@ func Open(cfg Config, t Transport) (*Node, error) {
 		n.log = []LogEntry{{Index: meta.Index, Term: meta.Term}}
 		n.commitIndex = meta.Index
 		n.lastApplied = meta.Index
+		n.snapshotMeta = meta
+		n.snapshotData = data
 	}
 
 	hard, entries, err := cfg.Storage.Load()

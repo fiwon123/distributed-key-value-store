@@ -28,10 +28,9 @@ Once built, you can run a small cluster (three nodes by default) and:
 
 **MVP complete.** Single-node KV, Raft leader election, log replication and
 commit, on-disk log persistence with restart recovery, automatic snapshots and
-log compaction, in-process leader-failure tests, the cluster dashboard, and a
-runnable 3-node cluster (local processes or Docker Compose). Remaining: the
-`InstallSnapshot` RPC, so a leader can catch up a follower that has fallen
-behind the compacted boundary.
+log compaction, the `InstallSnapshot` RPC that catches up a follower behind the
+compacted boundary, in-process leader-failure tests, the cluster dashboard, and a
+runnable 3-node cluster (local processes or Docker Compose).
 
 ## Stack
 
@@ -140,6 +139,9 @@ survivor takes over.
   default) has been applied past the last snapshot, the state machine is
   snapshotted and the log prefix dropped, so the log does not grow without
   bound and restarts replay only the tail.
+- **Snapshot catch-up** — a follower that falls behind the compacted log prefix
+  is caught up with the leader's snapshot via the `InstallSnapshot` RPC instead
+  of the missing entries.
 
 ## Build order
 
