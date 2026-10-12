@@ -1,5 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { deleteKey, fetchCluster, fetchStatus, getKey, putKey } from "./api";
+import {
+  deleteKey,
+  endpointsFromSpec,
+  fetchCluster,
+  fetchEndpoints,
+  fetchStatus,
+  getKey,
+  pathMatchesTemplate,
+  putKey,
+} from "./api";
 
 function json(body: unknown, status = 200, headers: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(body), {
@@ -90,5 +99,56 @@ describe("api", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(json(status)));
 
     await expect(fetchStatus("/v1/status")).resolves.toEqual(status);
+  });
+
+  it("flattens an OpenAPI document into endpoints in a stable order", () => {
+    const endpoints = endpointsFromSpec({
+      paths: {
+        "/b": { get: { responses: { "200": {}, "503": {} } } },
+        "/a": {
+          get: { responses: { "200": {}, "404": {} } },
+          put: { summary: "put", responses: { "200": {} } },
+        },
+      },
+    });
+
+    expect(endpoints).toEqual([
+      { method: "GET", path: "/b", summary: "", responses: [200, 503] },
+      { method: "GET", path: "/a", summary: "", responses: [200, 404] },
+      { method: "PUT", path: "/a", summary: "put", responses: [200] },
+    ]);
+  });
+
+  it("ignores non-numeric response keys and missing paths", () => {
+    expect(endpointsFromSpec({})).toEqual([]);
+    expect(
+      endpointsFromSpec({ paths: { "/x": { get: { responses: { default: {}, "201": {} } } } } }),
+    ).toEqual([{ method: "GET", path: "/x", summary: "", responses: [201] }]);
+  });
+
+  it("matches a concrete path against an OpenAPI template", () => {
+    expect(pathMatchesTemplate("/v1/kv/{key}", "/v1/kv/greeting")).toBe(true);
+    // A templated segment must be non-empty, so the bare prefix does not match.
+    expect(pathMatchesTemplate("/v1/kv/{key}", "/v1/kv/")).toBe(false);
+    expect(pathMatchesTemplate("/v1/status", "/v1/status")).toBe(true);
+    expect(pathMatchesTemplate("/v1/status", "/v1/status/extra")).toBe(false);
+    expect(pathMatchesTemplate("/v1/status", "/v1/STATUS")).toBe(false);
+  });
+
+  it("loads endpoints from the spec endpoint", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(json({ paths: { "/x": { get: { responses: { "200": {} } } } } })),
+    );
+
+    await expect(fetchEndpoints()).resolves.toEqual([
+      { method: "GET", path: "/x", summary: "", responses: [200] },
+    ]);
+  });
+
+  it("propagates a spec fetch error", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(json({ error: "spec boom" }, 500)));
+
+    await expect(fetchEndpoints()).rejects.toThrow("spec boom");
   });
 });

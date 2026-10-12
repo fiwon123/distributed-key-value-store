@@ -197,6 +197,11 @@ button:disabled {
   flex: 1 1 100%;
 }
 
+.playground__doc {
+  margin: 0.75rem 0 0;
+  font-size: 0.8rem;
+}
+
 .playground__body textarea {
   width: 100%;
   resize: vertical;

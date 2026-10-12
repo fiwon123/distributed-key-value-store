@@ -1,11 +1,56 @@
-import { useEffect, useState } from "react";
-import { fetchCluster, rawRequest, type RawResponse } from "../api";
+import { useEffect, useMemo, useState } from "react";
+import {
+  type Endpoint,
+  fetchCluster,
+  fetchEndpoints,
+  pathMatchesTemplate,
+  rawRequest,
+  type RawResponse,
+} from "../api";
 
-const METHODS = ["GET", "PUT", "DELETE"] as const;
+// Used until the spec loads and whenever it cannot be fetched, so the
+// playground always offers something useful.
+const FALLBACK_ENDPOINTS: Endpoint[] = [
+  {
+    method: "PUT",
+    path: "/v1/kv/{key}",
+    summary: "Set a key to a value.",
+    responses: [200, 400, 500, 503],
+  },
+  {
+    method: "GET",
+    path: "/v1/kv/{key}",
+    summary: "Read a key.",
+    responses: [200, 404, 500, 503],
+  },
+  {
+    method: "DELETE",
+    path: "/v1/kv/{key}",
+    summary: "Delete a key.",
+    responses: [204, 404, 500, 503],
+  },
+  {
+    method: "GET",
+    path: "/v1/status",
+    summary: "Current node and cluster status.",
+    responses: [200],
+  },
+  {
+    method: "GET",
+    path: "/v1/openapi.json",
+    summary: "This OpenAPI document.",
+    responses: [200],
+  },
+];
 
-// The documented endpoints, offered as one-click path presets. The key form is
-// left for the user to finish (e.g. /v1/kv/greeting).
-const PATH_PRESETS = ["/v1/kv/", "/v1/status", "/v1/openapi.json"];
+// Methods offered for a path the spec does not describe.
+const FALLBACK_METHODS = ["GET", "PUT", "DELETE"];
+
+// presetPath turns a path template into a fillable prefix: the user completes
+// any "{param}" (e.g. /v1/kv/{key} -> /v1/kv/).
+function presetPath(template: string): string {
+  return template.replace(/\{[^}]*\}/g, "");
+}
 
 // pretty renders a JSON body indented; anything else is shown verbatim.
 function pretty(body: string): string {
@@ -17,6 +62,7 @@ function pretty(body: string): string {
 }
 
 export function Playground() {
+  const [endpoints, setEndpoints] = useState<Endpoint[]>(FALLBACK_ENDPOINTS);
   const [method, setMethod] = useState<string>("GET");
   const [path, setPath] = useState("/v1/status");
   const [body, setBody] = useState('{"value":"hello"}');
@@ -40,13 +86,49 @@ export function Playground() {
     };
   }, []);
 
+  // The presets come from the node's own contract. Keep the built-in fallback
+  // if the spec cannot be fetched, so the playground never goes empty.
+  useEffect(() => {
+    let cancelled = false;
+    fetchEndpoints()
+      .then((derived) => {
+        if (!cancelled && derived.length > 0) setEndpoints(derived);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Endpoints whose path template matches what the user is typing.
+  const matched = useMemo(
+    () => endpoints.filter((e) => pathMatchesTemplate(e.path, path)),
+    [endpoints, path],
+  );
+
+  // Documented methods for the current path, or the fallback list for a
+  // free-text path the spec does not describe.
+  const availableMethods = useMemo(
+    () => (matched.length > 0 ? [...new Set(matched.map((e) => e.method))] : FALLBACK_METHODS),
+    [matched],
+  );
+
+  // Derive the method to use during render rather than correcting state in an
+  // effect: when the path narrows to a path with a different method set (e.g.
+  // /v1/status only allows GET), the effective method follows without an extra
+  // render.
+  const effectiveMethod = availableMethods.includes(method) ? method : availableMethods[0];
+  const current = matched.find((e) => e.method === effectiveMethod);
+
   async function send() {
     setBusy(true);
     setError("");
     setResult(undefined);
     try {
       const target = node ? `/node/${encodeURIComponent(node)}${path}` : path;
-      setResult(await rawRequest(method, target, method === "PUT" ? body : undefined));
+      setResult(
+        await rawRequest(effectiveMethod, target, effectiveMethod === "PUT" ? body : undefined),
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -65,8 +147,8 @@ export function Playground() {
       >
         <label>
           method
-          <select value={method} onChange={(e) => setMethod(e.target.value)}>
-            {METHODS.map((m) => (
+          <select value={effectiveMethod} onChange={(e) => setMethod(e.target.value)}>
+            {availableMethods.map((m) => (
               <option key={m} value={m}>
                 {m}
               </option>
@@ -86,11 +168,20 @@ export function Playground() {
         </label>
         <label>
           preset
-          <select value="" onChange={(e) => e.target.value && setPath(e.target.value)}>
+          <select
+            value=""
+            onChange={(e) => {
+              const chosen = endpoints.find((x) => `${x.method} ${x.path}` === e.target.value);
+              if (!chosen) return;
+              setMethod(chosen.method);
+              setPath(presetPath(chosen.path));
+            }}
+          >
             <option value="">custom…</option>
-            {PATH_PRESETS.map((p) => (
-              <option key={p} value={p}>
-                {p}
+            {endpoints.map((e) => (
+              <option key={`${e.method} ${e.path}`} value={`${e.method} ${e.path}`}>
+                {e.method} {e.path}
+                {e.summary ? ` — ${e.summary}` : ""}
               </option>
             ))}
           </select>
@@ -104,7 +195,7 @@ export function Playground() {
             required
           />
         </label>
-        {method === "PUT" && (
+        {effectiveMethod === "PUT" && (
           <label className="playground__body">
             body
             <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={3} />
@@ -116,6 +207,14 @@ export function Playground() {
           </button>
         </div>
       </form>
+
+      {current && (
+        <p className="muted playground__doc" data-testid="playground-doc">
+          {current.summary}
+          {current.summary ? " · " : ""}
+          declares {current.responses.length > 0 ? current.responses.join(", ") : "no responses"}
+        </p>
+      )}
 
       {error && <p className="error">{error}</p>}
 
