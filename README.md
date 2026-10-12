@@ -77,6 +77,11 @@ exercise `PUT`/`GET`/`DELETE` against the leader. The browser reaches peers
 through a server-side `/node/{id}/` proxy, so nodes only need to be reachable
 from each other — not from the browser.
 
+The dashboard has two tabs: **Cluster** (the view above) and **API**, a small
+playground where you pick a method, enter a path, and see the raw response —
+including the status and the `X-Raft-Leader` header. Unlike the console, it does
+not retry a `503`, so a non-leader answer is visible as-is.
+
 Build it once; the node embeds the output:
 
 ```bash
