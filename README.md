@@ -179,6 +179,9 @@ The docker compose **dev sandbox** gives you the full toolchain (Go, Node,
 `GH_TOKEN`/`GITHUB_TOKEN` forwarded at runtime — never baked into the image.
 
 ```bash
+# Copy .env.example to .env to override ports/tokens if needed
+cp .env.example .env
+
 make dev-up        # build + start the sandbox (needs docker on the host)
 make dev-restart   # restart after Dockerfile/deps changes
 make shell         # shell inside the sandbox

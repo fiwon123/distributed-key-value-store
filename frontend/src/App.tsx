@@ -3,9 +3,12 @@ import { fetchCluster, fetchStatus } from "./api";
 import { KVForm } from "./components/KVForm";
 import { NodeCard } from "./components/NodeCard";
 import { Playground } from "./components/Playground";
+import { About } from "./components/About";
+import { useTheme } from "./hooks/useTheme";
 import type { ClusterInfo, Status } from "./types";
+import "./styles.css";
 
-type Tab = "cluster" | "api";
+type Tab = "cluster" | "api" | "about";
 
 function statusPath(self: string, id: string): string {
   return id === self ? "/v1/status" : `/node/${encodeURIComponent(id)}/v1/status`;
@@ -27,6 +30,7 @@ export default function App() {
   const [clusterError, setClusterError] = useState("");
   const [statuses, setStatuses] = useState<Record<string, Status>>({});
   const [statusErrors, setStatusErrors] = useState<Record<string, string>>({});
+  const { theme, toggleTheme } = useTheme();
 
   useEffect(() => {
     let cancelled = false;
@@ -44,24 +48,21 @@ export default function App() {
       }
     }
     void load();
-    const timer = setInterval(() => void load(), 5000);
-    return () => {
-      cancelled = true;
-      clearInterval(timer);
-    };
   }, []);
 
   useEffect(() => {
     if (!cluster) {
       return;
     }
-    const { self, peers } = cluster;
-    const ids = [self, ...peers];
     let cancelled = false;
 
     async function poll() {
-      const results: Polled[] = await Promise.all(
-        ids.map(async (id) => {
+      if (!cluster) return;
+      const self = cluster.self;
+      const peers = cluster.peers ?? [];
+      const ids = [self, ...peers];
+      const results = await Promise.all(
+        ids.map(async (id): Promise<Polled> => {
           try {
             return { id, status: await fetchStatus(statusPath(self, id)) };
           } catch (err) {
@@ -97,49 +98,96 @@ export default function App() {
 
   return (
     <main className="app">
-      <header className="app__header">
-        <h1>distributed key-value store</h1>
-        {cluster ? (
-          <p className="muted">
-            local node <strong>{cluster.self}</strong>
-          </p>
-        ) : (
-          <p className="muted">connecting…</p>
-        )}
+      <header className="header">
+        <div className="header-content">
+          <div className="logo">
+            <img src="/favicon.svg" alt="Logo" />
+            <span>distributed key-value store</span>
+            {cluster && (
+              <span className="muted">
+                {" "}
+                (local node <strong>{cluster.self}</strong>)
+              </span>
+            )}
+          </div>
+          <button
+            className="theme-toggle"
+            onClick={toggleTheme}
+            aria-label="Toggle theme"
+            title="Toggle theme"
+          >
+            {theme === "dark" ? "☀️" : "🌙"}
+          </button>
+        </div>
       </header>
 
       {clusterError && <p className="error">cluster: {clusterError}</p>}
 
-      <nav className="tabs">
-        <button
-          type="button"
-          className={tab === "cluster" ? "tab tab--active" : "tab"}
-          onClick={() => setTab("cluster")}
-        >
-          Cluster
-        </button>
-        <button
-          type="button"
-          className={tab === "api" ? "tab tab--active" : "tab"}
-          onClick={() => setTab("api")}
-        >
-          API
-        </button>
-      </nav>
+      <div className="main">
+        <nav className="nav tabs">
+          <button
+            type="button"
+            className={`nav-tab tab ${tab === "cluster" ? "active tab--active" : ""}`}
+            onClick={() => setTab("cluster")}
+            data-testid="cluster-tab"
+          >
+            Cluster
+          </button>
+          <button
+            type="button"
+            className={`nav-tab tab ${tab === "api" ? "active tab--active" : ""}`}
+            onClick={() => setTab("api")}
+            data-testid="api-tab"
+          >
+            API
+          </button>
+          <button
+            type="button"
+            className={`nav-tab tab ${tab === "about" ? "active tab--active" : ""}`}
+            onClick={() => setTab("about")}
+            data-testid="about-tab"
+          >
+            About
+          </button>
+        </nav>
 
-      {tab === "cluster" ? (
-        <>
-          <div className="nodes">
-            {ids.map((id) => (
-              <NodeCard key={id} id={id} status={statuses[id]} error={statusErrors[id]} />
-            ))}
+        <div className="content">
+          {tab === "cluster" ? (
+            <>
+              <div className="nodes">
+                {ids.map((id) => (
+                  <NodeCard key={id} id={id} status={statuses[id]} error={statusErrors[id]} />
+                ))}
+              </div>
+
+              <KVForm />
+            </>
+          ) : tab === "api" ? (
+            <Playground />
+          ) : (
+            <About />
+          )}
+        </div>
+      </div>
+
+      <footer className="footer">
+        <div className="footer-content">
+          <div className="footer-links">
+            <a
+              href="https://github.com/fiwon123/distributed-key-value-store"
+              target="_blank"
+              rel="noreferrer"
+              className="footer-link"
+            >
+              GitHub
+            </a>
+            <a href="/docs" target="_blank" rel="noreferrer" className="footer-link">
+              API Docs
+            </a>
           </div>
-
-          <KVForm />
-        </>
-      ) : (
-        <Playground />
-      )}
+          <p className="footer-text">© 2026 Distributed Key-Value Store</p>
+        </div>
+      </footer>
     </main>
   );
 }
