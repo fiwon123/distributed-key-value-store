@@ -7,33 +7,47 @@ export function About() {
         scratch with a hand-rolled Raft consensus algorithm.
       </p>
 
-      <h3>How to Use</h3>
+      <h3>Quick Start</h3>
       <ol>
         <li>
-          <strong>Start a node</strong>: Run a single node or a small cluster (3 nodes by default).
+          <strong>Start a node</strong>: run <code>go run ./backend/cmd/kvnode</code> for a single
+          node, or <code>make cluster-smoke</code> for a local 3-node cluster.
         </li>
         <li>
-          <strong>View cluster</strong>: Use the <em>Cluster</em> tab to see node roles, terms,
+          <strong>Open the dashboard</strong>: browse to <code>http://localhost:8080</code>.
+        </li>
+        <li>
+          <strong>View the cluster</strong>: the <em>Cluster</em> tab shows each node's role, term,
           leader, and commit/applied indices.
         </li>
         <li>
-          <strong>Interact with KV</strong>: Use the <em>API</em> tab (Playground) to PUT, GET, and
-          DELETE keys via the HTTP API.
+          <strong>Interact with KV</strong>: use the <em>API</em> tab to PUT, GET, and DELETE keys,
+          or call the API directly:
+          <pre
+            style={{
+              background: "var(--bg-primary)",
+              padding: "0.75rem",
+              borderRadius: "4px",
+              overflow: "auto",
+            }}
+          >
+            {`curl -X PUT http://localhost:8080/v1/kv/greeting -H 'Content-Type: application/json' -d '{"value":"hello"}'
+curl http://localhost:8080/v1/kv/greeting
+curl -X DELETE http://localhost:8080/v1/kv/greeting`}
+          </pre>
         </li>
         <li>
-          <strong>Proxy to peers</strong>: The dashboard can proxy requests to peer nodes when
-          needed.
+          <strong>Read the docs</strong>: Swagger UI lives at <code>/docs</code>, and the raw
+          contract at <code>/v1/openapi.json</code>.
         </li>
       </ol>
 
       <h3>Features</h3>
       <ul>
-        <li>Single-node KV with HTTP API</li>
-        <li>Raft leader election and log replication</li>
-        <li>Persistence, snapshots, and log compaction</li>
-        <li>
-          Embedded web dashboard with Swagger UI at <code>/docs</code>
-        </li>
+        <li>Single-node key-value store with an HTTP API</li>
+        <li>Hand-rolled Raft leader election and log replication</li>
+        <li>On-disk log, automatic snapshots, and log compaction</li>
+        <li>Embedded dashboard with an API playground and Swagger UI</li>
       </ul>
 
       <p style={{ marginTop: "1rem" }}>
