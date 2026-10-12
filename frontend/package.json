@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "codegen": "openapi-typescript ../backend/internal/httpapi/openapi.json -o src/api-types.gen.ts && oxfmt --write src/api-types.gen.ts",
+    "prebuild": "npm run codegen",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "lint": "oxlint",
@@ -26,6 +28,7 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
     "jsdom": "^30.1.2",
+    "openapi-typescript": "7.13.0",
     "oxfmt": "^0.72.0",
     "oxlint": "^1.87.0",
     "typescript": "^5.9.3",

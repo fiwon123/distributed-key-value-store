@@ -110,11 +110,6 @@ export function pathMatchesTemplate(template: string, path: string): boolean {
   });
 }
 
-export interface KeyValue {
-  key: string;
-  value: string;
-}
-
 export async function putKey(key: string, value: string): Promise<void> {
   const res = await request("PUT", `/v1/kv/${encodeURIComponent(key)}`, { value });
   if (!res.ok) throw new Error(await errorMessage(res));

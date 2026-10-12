@@ -9,7 +9,7 @@ NPM ?= npm
 WEB_DIR ?= frontend
 
 .PHONY: help check fmt vet test test-integration build run clean \
-        web-install web-build web-dev web-lint web-test web-check \
+        web-install web-build web-dev web-lint web-test web-codegen web-check \
         cluster-smoke cluster-up cluster-down cluster-logs \
         preflight dev-up dev-down dev-restart dev-log dev-build reset \
         shell opencode opencode-auto dev-shell dev-opencode dev-opencode-auto
@@ -76,6 +76,10 @@ web-dev: ## Run the Vite dev server (proxies to a locally running node)
 web-build: ## Build the dashboard into backend/internal/webui/dist for embedding
 	@echo "==> vite build ($(WEB_DIR))"
 	cd $(WEB_DIR) && $(NPM) run build
+
+web-codegen: ## Regenerate TypeScript types from backend/internal/httpapi/openapi.json
+	@echo "==> openapi-typescript ($(WEB_DIR))"
+	cd $(WEB_DIR) && $(NPM) run codegen
 
 web-lint: ## Lint/format-check the frontend
 	cd $(WEB_DIR) && $(NPM) run lint && $(NPM) run format:check
