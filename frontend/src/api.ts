@@ -134,6 +134,17 @@ export async function deleteKey(key: string): Promise<void> {
   }
 }
 
+// listKeys returns every stored key, sorted. The endpoint is leader-only, so a
+// 503 is retried once through the leader in X-Raft-Leader (see request()).
+export async function listKeys(): Promise<string[]> {
+  const res = await request("GET", "/v1/kv");
+  if (!res.ok) {
+    throw new Error(await errorMessage(res));
+  }
+  const body = (await res.json()) as { keys: string[] };
+  return body.keys ?? [];
+}
+
 // RawResponse is the unprocessed result of a request, surfaced to the API
 // playground. Unlike request(), nothing is retried: a 503 from a non-leader is
 // returned as-is so the caller can see the status and the X-Raft-Leader header.

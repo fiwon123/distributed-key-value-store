@@ -169,6 +169,16 @@ func (b *raftBackend) Delete(key string) (bool, error) {
 	return true, nil
 }
 
+// List returns the stored keys, leader-only like Get: a follower cannot prove
+// the list is current, so it answers ErrUnavailable and the client retries the
+// leader named in X-Raft-Leader.
+func (b *raftBackend) List() ([]string, error) {
+	if b.node.Status().Role != "leader" {
+		return nil, httpapi.ErrUnavailable
+	}
+	return b.store.Keys(), nil
+}
+
 // propose submits an encoded command to raft and maps raft errors to the API's
 // ErrUnavailable so the handler returns 503 (with the leader hint).
 func (b *raftBackend) propose(data []byte) error {
