@@ -184,6 +184,11 @@ func contractScenarios() map[string]contractScenario {
 	add("GET /v1/kv/{key} 500", contractScenario{setup: func(b *fakeBackend) { b.getErr = errors.New("boom") }, method: "GET", urlPath: kvURL})
 	add("GET /v1/kv/{key} 503", contractScenario{setup: func(b *fakeBackend) { b.getErr = ErrUnavailable }, method: "GET", urlPath: kvURL})
 
+	// GET /v1/kv
+	add("GET /v1/kv 200", contractScenario{setup: seed, method: "GET", urlPath: "/v1/kv"})
+	add("GET /v1/kv 500", contractScenario{setup: func(b *fakeBackend) { b.listErr = errors.New("boom") }, method: "GET", urlPath: "/v1/kv"})
+	add("GET /v1/kv 503", contractScenario{setup: func(b *fakeBackend) { b.listErr = ErrUnavailable }, method: "GET", urlPath: "/v1/kv"})
+
 	// DELETE /v1/kv/{key}
 	add("DELETE /v1/kv/{key} 204", contractScenario{setup: seed, method: "DELETE", urlPath: kvURL})
 	add("DELETE /v1/kv/{key} 404", contractScenario{method: "DELETE", urlPath: kvURL})
