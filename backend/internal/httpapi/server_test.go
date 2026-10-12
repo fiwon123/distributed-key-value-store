@@ -5,6 +5,8 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -12,10 +14,11 @@ import (
 // fakeBackend is an in-memory Backend for handler tests. It records injected
 // errors so unavailable/error paths can be exercised without a real node.
 type fakeBackend struct {
-	m      map[string]string
-	getErr error
-	putErr error
-	delErr error
+	m       map[string]string
+	getErr  error
+	putErr  error
+	delErr  error
+	listErr error
 }
 
 func newFakeBackend() *fakeBackend { return &fakeBackend{m: map[string]string{}} }
@@ -43,6 +46,18 @@ func (f *fakeBackend) Delete(key string) (bool, error) {
 	_, ok := f.m[key]
 	delete(f.m, key)
 	return ok, nil
+}
+
+func (f *fakeBackend) List() ([]string, error) {
+	if f.listErr != nil {
+		return nil, f.listErr
+	}
+	keys := make([]string, 0, len(f.m))
+	for k := range f.m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys, nil
 }
 
 type fakeStatus struct {
@@ -123,6 +138,53 @@ func TestGetMissing(t *testing.T) {
 	resp := doRequest(t, http.MethodGet, ts.URL+"/v1/kv/missing", "", "")
 	if resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("GET status = %d, want %d", resp.StatusCode, http.StatusNotFound)
+	}
+}
+
+func TestListKeys(t *testing.T) {
+	b := newFakeBackend()
+	b.m["beta"] = "2"
+	b.m["alpha"] = "1"
+	ts := newTestServer(t, b)
+
+	resp := doRequest(t, http.MethodGet, ts.URL+"/v1/kv", "", "")
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("GET /v1/kv status = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+	var body keyList
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("decode list response: %v", err)
+	}
+	if want := []string{"alpha", "beta"}; !reflect.DeepEqual(body.Keys, want) {
+		t.Fatalf("keys = %v, want %v", body.Keys, want)
+	}
+}
+
+func TestListEmpty(t *testing.T) {
+	ts := newTestServer(t, newFakeBackend())
+	resp := doRequest(t, http.MethodGet, ts.URL+"/v1/kv", "", "")
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("GET /v1/kv status = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+	var body keyList
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("decode list response: %v", err)
+	}
+	if len(body.Keys) != 0 {
+		t.Fatalf("keys = %v, want empty", body.Keys)
+	}
+}
+
+func TestListUnavailable(t *testing.T) {
+	b := newFakeBackend()
+	b.listErr = ErrUnavailable
+	ts := newTestServer(t, b)
+	resp := doRequest(t, http.MethodGet, ts.URL+"/v1/kv", "", "")
+	if resp.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("GET /v1/kv status = %d, want %d", resp.StatusCode, http.StatusServiceUnavailable)
+	}
+	if got := resp.Header.Get("X-Raft-Leader"); got != "node1" {
+		t.Fatalf("X-Raft-Leader = %q, want node1", got)
 	}
 }
 

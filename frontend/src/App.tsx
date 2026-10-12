@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { fetchCluster, fetchStatus } from "./api";
 import { KVForm } from "./components/KVForm";
+import { Keys } from "./components/Keys";
 import { NodeCard } from "./components/NodeCard";
 import { Playground } from "./components/Playground";
 import { About } from "./components/About";
@@ -160,6 +161,7 @@ export default function App() {
               </div>
 
               <KVForm />
+              <Keys />
             </>
           ) : tab === "api" ? (
             <Playground />

@@ -8,6 +8,7 @@ package kv
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"sync"
 )
 
@@ -51,6 +52,19 @@ func (s *Store) Len() int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return len(s.m)
+}
+
+// Keys returns every stored key in sorted order. The result is a fresh slice,
+// so callers may keep or modify it freely.
+func (s *Store) Keys() []string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	keys := make([]string, 0, len(s.m))
+	for k := range s.m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 // Snapshot returns a JSON image of the store, suitable for a Raft snapshot and

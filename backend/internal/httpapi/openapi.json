@@ -6,6 +6,42 @@
     "description": "Educational distributed key-value store backed by a hand-rolled Raft log. Writes must reach the leader; a non-leader answers 503 with the current leader in the X-Raft-Leader header. Not production-ready: no TLS, no auth.\n\nThis document is validated against the registered routes by backend/internal/httpapi/openapi_test.go, so it cannot silently drift from the handlers."
   },
   "paths": {
+    "/v1/kv": {
+      "get": {
+        "operationId": "listKeys",
+        "summary": "List all keys.",
+        "description": "Returns the keys held by the replicated state machine, sorted. Leader-only: a non-leader answers 503 with the leader in X-Raft-Leader.",
+        "responses": {
+          "200": {
+            "description": "The stored keys, sorted.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/KeyList" }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "503": {
+            "description": "This node is not the leader or a quorum is unreachable.",
+            "headers": {
+              "X-Raft-Leader": { "$ref": "#/components/headers/X-Raft-Leader" }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/kv/{key}": {
       "parameters": [
         {
@@ -194,6 +230,17 @@
         "properties": {
           "key": { "type": "string" },
           "value": { "type": "string" }
+        }
+      },
+      "KeyList": {
+        "type": "object",
+        "required": ["keys"],
+        "properties": {
+          "keys": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "The stored keys, sorted lexicographically."
+          }
         }
       },
       "Status": {
