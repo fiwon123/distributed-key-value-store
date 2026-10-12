@@ -2,7 +2,10 @@ import { useEffect, useState } from "react";
 import { fetchCluster, fetchStatus } from "./api";
 import { KVForm } from "./components/KVForm";
 import { NodeCard } from "./components/NodeCard";
+import { Playground } from "./components/Playground";
 import type { ClusterInfo, Status } from "./types";
+
+type Tab = "cluster" | "api";
 
 function statusPath(self: string, id: string): string {
   return id === self ? "/v1/status" : `/node/${encodeURIComponent(id)}/v1/status`;
@@ -19,6 +22,7 @@ interface Polled {
 }
 
 export default function App() {
+  const [tab, setTab] = useState<Tab>("cluster");
   const [cluster, setCluster] = useState<ClusterInfo>();
   const [clusterError, setClusterError] = useState("");
   const [statuses, setStatuses] = useState<Record<string, Status>>({});
@@ -106,13 +110,36 @@ export default function App() {
 
       {clusterError && <p className="error">cluster: {clusterError}</p>}
 
-      <div className="nodes">
-        {ids.map((id) => (
-          <NodeCard key={id} id={id} status={statuses[id]} error={statusErrors[id]} />
-        ))}
-      </div>
+      <nav className="tabs">
+        <button
+          type="button"
+          className={tab === "cluster" ? "tab tab--active" : "tab"}
+          onClick={() => setTab("cluster")}
+        >
+          Cluster
+        </button>
+        <button
+          type="button"
+          className={tab === "api" ? "tab tab--active" : "tab"}
+          onClick={() => setTab("api")}
+        >
+          API
+        </button>
+      </nav>
 
-      <KVForm />
+      {tab === "cluster" ? (
+        <>
+          <div className="nodes">
+            {ids.map((id) => (
+              <NodeCard key={id} id={id} status={statuses[id]} error={statusErrors[id]} />
+            ))}
+          </div>
+
+          <KVForm />
+        </>
+      ) : (
+        <Playground />
+      )}
     </main>
   );
 }
