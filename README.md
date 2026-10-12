@@ -82,6 +82,11 @@ playground where you pick a method, enter a path, and see the raw response —
 including the status and the `X-Raft-Leader` header. Unlike the console, it does
 not retry a `503`, so a non-leader answer is visible as-is.
 
+The playground is driven by the node's own contract: it reads
+`GET /v1/openapi.json` and derives its endpoint presets, the methods allowed per
+path, and the declared status codes it shows. If the spec cannot be fetched it
+falls back to a built-in endpoint list and keeps working.
+
 Build it once; the node embeds the output:
 
 ```bash
