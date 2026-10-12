@@ -75,6 +75,11 @@ compiles it to `backend/internal/webui/dist`, which the node embeds via
 `go:embed`. The committed `backend/internal/webui/dist/placeholder.html` keeps a
 plain `go build` working without Node; the built assets are gitignored.
 
+`backend/internal/httpapi/openapi.json` is the source of truth for the HTTP API:
+Go contract tests keep it in sync with the handlers, and `npm run codegen`
+(`make web-codegen`) regenerates `frontend/src/api-types.gen.ts` from it.
+`npm run build` runs codegen first, so the committed types cannot go stale.
+
 ## Development Commands
 
 ```bash
@@ -91,6 +96,7 @@ npm run dev              # Vite dev server (proxies to a local node)
 npm run lint             # oxlint
 npm run format:check     # oxfmt (use `npm run format` to fix)
 npm test                 # vitest
+npm run codegen          # regenerate src/api-types.gen.ts from openapi.json
 npm run build            # type-check + build into backend/internal/webui/dist
 ```
 

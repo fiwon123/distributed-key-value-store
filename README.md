@@ -87,6 +87,11 @@ The playground is driven by the node's own contract: it reads
 path, and the declared status codes it shows. If the spec cannot be fetched it
 falls back to a built-in endpoint list and keeps working.
 
+The dashboard's TypeScript types come from the same document, so the frontend
+cannot drift from the handlers: `npm run codegen` (`make web-codegen`) turns
+`backend/internal/httpapi/openapi.json` into
+`frontend/src/api-types.gen.ts`, and `npm run build` runs it first.
+
 Build it once; the node embeds the output:
 
 ```bash
@@ -194,6 +199,7 @@ make check           # all of the above (Go gate)
 cd frontend
 npm ci               # install frontend deps
 npm run dev          # Vite dev server (proxies to a running node)
+npm run codegen      # regenerate src/api-types.gen.ts from openapi.json
 npm test             # frontend unit tests
 make web-check       # frontend gate: ci + lint + format + test + build
 ```
