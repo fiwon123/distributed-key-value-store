@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>dashboard not built</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        margin: 3rem auto;
+        max-width: 40rem;
+        padding: 0 1rem;
+        line-height: 1.5;
+      }
+      code {
+        background: #f2f2f2;
+        border-radius: 0.25rem;
+        padding: 0.1rem 0.3rem;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>dashboard not built</h1>
+    <p>
+      This binary was compiled before the frontend was built, so it is serving
+      this placeholder.
+    </p>
+    <p>Build the dashboard and rebuild the node:</p>
+    <pre><code>make web-build
+go build ./backend/cmd/kvnode</code></pre>
+  </body>
+</html>

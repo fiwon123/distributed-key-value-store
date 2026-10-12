@@ -1,0 +1,15 @@
+# Fast reload config for the dev sandbox — runs the single-node kvnode via air.
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  cmd = "go build -o ./tmp/kvnode ./backend/cmd/kvnode"
+  bin = "./tmp/kvnode"
+  include_ext = ["go", "toml", "html"]
+  exclude_dir = ["tmp", ".go", "backend/internal/raft/testdata"]
+  delay = 1000
+  stop_on_error = true
+  log = "air.log"
+
+[misc]
+  clean_on_exit = true
