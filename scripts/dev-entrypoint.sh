@@ -24,5 +24,19 @@ if [ "${SLEEP_ON_IDLE}" = "true" ] && { [ ! -f "${DEV_DIR}/go.mod" ] || [ ! -d "
     exec sleep infinity
 fi
 
+# --- Ensure frontend dashboard is built (so / serves real SPA) ----------------
+DIST_INDEX="${DEV_DIR}/backend/internal/webui/dist/index.html"
+if [ ! -f "${DIST_INDEX}" ] && [ -f "${DEV_DIR}/frontend/package.json" ]; then
+    echo "[dev] Dashboard dist/index.html missing — building frontend..."
+    cd "${DEV_DIR}/frontend"
+    if [ -f "package-lock.json" ]; then
+        npm ci
+    else
+        npm install
+    fi
+    npm run build
+    echo "[dev] Frontend build complete."
+fi
+
 echo "[dev] Starting kvnode with air fast reload..."
 cd "${DEV_DIR}" && exec air -c .air.toml
