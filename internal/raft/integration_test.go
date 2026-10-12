@@ -368,6 +368,111 @@ func TestSnapshotsSurviveRestart(t *testing.T) {
 	})
 }
 
+// TestLaggingFollowerCatchesUpViaSnapshot compacts the leader's log past a
+// follower while that follower is down, then reconnects it and checks it
+// catches up through InstallSnapshot and converges on the leader's state. This
+// is the acceptance criterion for #39: without the RPC the follower would stall
+// forever behind the compacted boundary.
+func TestLaggingFollowerCatchesUpViaSnapshot(t *testing.T) {
+	const threshold = 3
+	ids := []string{"n1", "n2", "n3"}
+	root := t.TempDir()
+	dirs := make(map[string]string, len(ids))
+	for _, id := range ids {
+		dirs[id] = filepath.Join(root, id)
+	}
+
+	tr, members := startPersistentCluster(t, dirs, threshold, ids...)
+	leader := persistentLeader(t, members)
+
+	// Write to the threshold so every node snapshots and compacts its log.
+	for i := 0; i < threshold; i++ {
+		key := fmt.Sprintf("k%d", i)
+		if err := leader.Propose(mustEncode(t, kv.Command{Op: kv.OpPut, Key: key, Value: "v"})); err != nil {
+			t.Fatalf("Propose %s: %v", key, err)
+		}
+	}
+	waitFor(t, 3*time.Second, func() bool {
+		for _, m := range members {
+			m.mu.Lock()
+			start := m.logStart
+			m.mu.Unlock()
+			if start < uint64(threshold) {
+				return false
+			}
+		}
+		return true
+	})
+
+	// Take one follower down, then push the leader past its compacted boundary.
+	var victim string
+	for id := range members {
+		if id != leader.id {
+			victim = id
+			break
+		}
+	}
+	old := members[victim]
+	delete(members, victim) // so cleanup does not stop it twice
+	old.Stop()
+	tr.remove(victim)
+
+	for i := threshold; i < 2*threshold; i++ {
+		key := fmt.Sprintf("k%d", i)
+		if err := leader.Propose(mustEncode(t, kv.Command{Op: kv.OpPut, Key: key, Value: "v"})); err != nil {
+			t.Fatalf("Propose %s: %v", key, err)
+		}
+	}
+	// The leader compacts to twice the threshold; the victim was at the
+	// threshold when it died, so the leader no longer holds the entries it needs.
+	waitFor(t, 3*time.Second, func() bool {
+		leader.mu.Lock()
+		start := leader.logStart
+		leader.mu.Unlock()
+		return start >= uint64(2*threshold)
+	})
+
+	// Restart the victim from its data dir (as a fresh process would) and rejoin.
+	node, store := openPersistentNode(t, victim, dirs[victim], peersFor(ids, victim), threshold)
+	restarted := &e2eMember{Node: node, store: store, dir: dirs[victim]}
+	members[victim] = restarted
+	node.transport = tr
+	tr.mu.Lock()
+	tr.nodes[victim] = node
+	tr.mu.Unlock()
+	node.Start()
+
+	// The leader can only catch the victim up with its snapshot; the victim must
+	// converge on the full committed state.
+	waitFor(t, 5*time.Second, func() bool {
+		for i := 0; i < 2*threshold; i++ {
+			if got, ok := store.Get(fmt.Sprintf("k%d", i)); !ok || got != "v" {
+				return false
+			}
+		}
+		return true
+	})
+
+	// Prove the snapshot path ran: the victim's own boundary advanced to the
+	// leader's compacted index, which only InstallSnapshot can move.
+	node.mu.Lock()
+	included := node.lastIncludedIndex
+	node.mu.Unlock()
+	if included < uint64(2*threshold) {
+		t.Fatalf("victim lastIncludedIndex = %d, want >= %d (InstallSnapshot not applied)", included, 2*threshold)
+	}
+
+	// Normal replication resumes on top of the installed snapshot.
+	next := "after-snapshot"
+	if err := leader.Propose(mustEncode(t, kv.Command{Op: kv.OpPut, Key: next, Value: "v2"})); err != nil {
+		t.Fatalf("Propose after rejoin: %v", err)
+	}
+	waitFor(t, 3*time.Second, func() bool {
+		got, ok := store.Get(next)
+		return ok && got == "v2"
+	})
+}
+
 func mustEncode(t *testing.T, cmd kv.Command) []byte {
 	t.Helper()
 	data, err := cmd.Encode()

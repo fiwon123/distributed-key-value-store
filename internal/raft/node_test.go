@@ -29,6 +29,7 @@ type stubTransport struct {
 	mu    sync.Mutex
 	vote  func(peer Peer, args RequestVoteArgs) (RequestVoteReply, error)
 	appnd func(peer Peer, args AppendEntriesArgs) (AppendEntriesReply, error)
+	snap  func(peer Peer, args InstallSnapshotArgs) (InstallSnapshotReply, error)
 }
 
 func (s *stubTransport) RequestVote(_ context.Context, peer Peer, args RequestVoteArgs) (RequestVoteReply, error) {
@@ -43,6 +44,13 @@ func (s *stubTransport) AppendEntries(_ context.Context, peer Peer, args AppendE
 		return AppendEntriesReply{}, errors.New("unexpected AppendEntries")
 	}
 	return s.appnd(peer, args)
+}
+
+func (s *stubTransport) InstallSnapshot(_ context.Context, peer Peer, args InstallSnapshotArgs) (InstallSnapshotReply, error) {
+	if s.snap == nil {
+		return InstallSnapshotReply{}, errors.New("unexpected InstallSnapshot")
+	}
+	return s.snap(peer, args)
 }
 
 // clusterTransport routes RPCs to in-process nodes by peer id — a fake, so
@@ -80,6 +88,14 @@ func (c *clusterTransport) AppendEntries(_ context.Context, peer Peer, args Appe
 		return AppendEntriesReply{}, errors.New("no such node")
 	}
 	return n.HandleAppendEntries(args), nil
+}
+
+func (c *clusterTransport) InstallSnapshot(_ context.Context, peer Peer, args InstallSnapshotArgs) (InstallSnapshotReply, error) {
+	n := c.node(peer.ID)
+	if n == nil {
+		return InstallSnapshotReply{}, errors.New("no such node")
+	}
+	return n.HandleInstallSnapshot(args), nil
 }
 
 func waitFor(t *testing.T, d time.Duration, cond func() bool) {

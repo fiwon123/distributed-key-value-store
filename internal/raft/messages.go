@@ -45,3 +45,19 @@ type AppendEntriesReply struct {
 	Term    uint64 `json:"term"`
 	Success bool   `json:"success"`
 }
+
+// InstallSnapshotArgs is the RPC a leader sends to a follower that has fallen
+// behind the leader's compacted log prefix (§7). Data is the whole state-machine
+// image; LastIncludedIndex/Term identify the last log entry it covers.
+type InstallSnapshotArgs struct {
+	Term              uint64 `json:"term"`
+	LeaderID          string `json:"leaderId"`
+	LastIncludedIndex uint64 `json:"lastIncludedIndex"`
+	LastIncludedTerm  uint64 `json:"lastIncludedTerm"`
+	Data              []byte `json:"data,omitempty"`
+}
+
+// InstallSnapshotReply is the response to InstallSnapshotArgs.
+type InstallSnapshotReply struct {
+	Term uint64 `json:"term"`
+}

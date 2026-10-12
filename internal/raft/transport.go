@@ -16,6 +16,7 @@ import (
 type Transport interface {
 	RequestVote(ctx context.Context, peer Peer, args RequestVoteArgs) (RequestVoteReply, error)
 	AppendEntries(ctx context.Context, peer Peer, args AppendEntriesArgs) (AppendEntriesReply, error)
+	InstallSnapshot(ctx context.Context, peer Peer, args InstallSnapshotArgs) (InstallSnapshotReply, error)
 }
 
 // HTTPTransport sends raft RPCs over HTTP with JSON bodies.
@@ -43,6 +44,13 @@ func (t *HTTPTransport) RequestVote(ctx context.Context, peer Peer, args Request
 func (t *HTTPTransport) AppendEntries(ctx context.Context, peer Peer, args AppendEntriesArgs) (AppendEntriesReply, error) {
 	var reply AppendEntriesReply
 	err := t.post(ctx, peer, "/raft/append_entries", args, &reply)
+	return reply, err
+}
+
+// InstallSnapshot POSTs a full state-machine snapshot to a lagging peer.
+func (t *HTTPTransport) InstallSnapshot(ctx context.Context, peer Peer, args InstallSnapshotArgs) (InstallSnapshotReply, error) {
+	var reply InstallSnapshotReply
+	err := t.post(ctx, peer, "/raft/install_snapshot", args, &reply)
 	return reply, err
 }
 
@@ -99,6 +107,14 @@ func NewHTTPHandler(n *Node) http.Handler {
 			return
 		}
 		writeJSON(w, n.HandleAppendEntries(args))
+	})
+	mux.HandleFunc("POST /raft/install_snapshot", func(w http.ResponseWriter, r *http.Request) {
+		var args InstallSnapshotArgs
+		if err := json.NewDecoder(r.Body).Decode(&args); err != nil {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		writeJSON(w, n.HandleInstallSnapshot(args))
 	})
 	return mux
 }
