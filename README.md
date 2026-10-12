@@ -194,14 +194,81 @@ go build ./...       # build
 go test ./...        # test
 go vet ./...         # static analysis
 gofmt -l .           # formatting (empty output = clean)
-make check           # all of the above (Go gate)
+make check           # all of the above (backend gate)
 
 cd frontend
 npm ci               # install frontend deps
 npm run dev          # Vite dev server (proxies to a running node)
 npm run codegen      # regenerate src/api-types.gen.ts from openapi.json
 npm test             # frontend unit tests
-make web-check       # frontend gate: ci + lint + format + test + build
+make web-check       # frontend gate: install + lint + format:check + test + build
+```
+
+## Testing
+
+### Backend
+
+Bring up a node (dev sandbox with `air` hot reload):
+
+```bash
+make dev-up        # kvnode on :8080 (set HOST_PORT to override)
+make dev-log       # follow logs
+make dev-down      # stop when done
+```
+
+**Manual testing (OpenAPI/Swagger):**
+
+- **Swagger UI:** http://localhost:8080/docs — Try it out against the live node.
+  (The UI loads from a CDN, so the browser needs network.)
+- **Raw spec:** http://localhost:8080/v1/openapi.json — import into Postman,
+  Redoc, the Swagger editor, or for client generation.
+- **Dashboard API playground:** http://localhost:8080/ → **API** tab — spec-driven
+  presets, per-path methods, and declared status codes; does not retry 503s so
+  `X-Raft-Leader` is visible (see [Interactive API testing](#interactive-api-testing)).
+- **curl spot checks:**
+  ```bash
+  curl -X PUT --data-binary 'hello' http://localhost:8080/v1/kv/demo
+  curl http://localhost:8080/v1/kv/demo
+  curl -X DELETE http://localhost:8080/v1/kv/demo
+  curl http://localhost:8080/v1/status
+  ```
+
+**Automated testing:**
+
+```bash
+go test ./backend/internal/httpapi/ -v    # contract tests: drive requests from the OpenAPI spec; fail on spec↔handler drift
+go test ./...                             # all unit tests
+make check                                # full backend gate: gofmt -l, go vet, go test, go build
+```
+
+### Frontend
+
+**Automated testing:**
+
+```bash
+cd frontend && npm ci
+npm test                # vitest + Testing Library + user-event (jsdom)
+npm run test:watch      # watch mode while iterating
+npm run lint
+npm run format:check
+make web-check          # frontend gate: install + lint + format:check + test + build
+```
+
+**Manual testing (browser):**
+
+- **Dev server (hot reload):** With the backend node already up (`make dev-up`),
+  run `make web-dev` and open http://localhost:5173. Vite proxies `/v1`, `/raft`,
+  `/cluster`, `/node`, and `/docs` to `http://localhost:8080` (override with
+  `VITE_BACKEND=<node-url>`).
+- **Production-like (embedded SPA):** Run `make web-build` (tsc + vite build;
+  regenerates TypeScript types from the OpenAPI spec first) to build into
+  `backend/internal/webui/dist`; the running `kvnode` (or `air` on rebuild) serves
+  the dashboard from the same origin at http://localhost:8080.
+
+### End-to-end
+
+```bash
+make cluster-smoke      # 3-node failure check: write a key, kill the leader, read it from the new leader (Go + curl only)
 ```
 
 The project follows an issue-first, branch-based workflow — see
