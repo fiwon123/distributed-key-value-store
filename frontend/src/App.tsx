@@ -25,6 +25,37 @@ interface Polled {
   error?: string;
 }
 
+// Sun / moon glyphs for the theme toggle, drawn inline so there is no icon
+// dependency and rendering is consistent across platforms.
+function ThemeIcon({ theme }: { theme: "light" | "dark" }) {
+  return theme === "dark" ? (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+    </svg>
+  ) : (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+    </svg>
+  );
+}
+
 export default function App() {
   const [tab, setTab] = useState<Tab>("cluster");
   const [cluster, setCluster] = useState<ClusterInfo>();
@@ -95,81 +126,80 @@ export default function App() {
   }, [cluster]);
 
   const ids = cluster ? [cluster.self, ...cluster.peers] : [];
+  const nextTheme = theme === "dark" ? "light" : "dark";
 
   return (
-    <main className="app">
+    <div className="app">
       <header className="header">
         <div className="header-content">
           <div className="logo">
-            <img src="/favicon.svg" alt="Logo" />
-            <span>distributed key-value store</span>
+            <img src="/favicon.svg" alt="" width="28" height="28" />
+            <span className="logo__title">distributed key-value store</span>
             {cluster && (
-              <span className="muted">
-                {" "}
-                (local node <strong>{cluster.self}</strong>)
+              <span className="logo__node muted">
+                local node <strong>{cluster.self}</strong>
               </span>
             )}
           </div>
           <button
+            type="button"
             className="theme-toggle"
             onClick={toggleTheme}
-            aria-label="Toggle theme"
-            title="Toggle theme"
+            aria-label={`Switch to ${nextTheme} mode`}
+            title={`Switch to ${nextTheme} mode`}
           >
-            {theme === "dark" ? "☀️" : "🌙"}
+            <ThemeIcon theme={theme} />
           </button>
         </div>
       </header>
 
-      {clusterError && <p className="error">cluster: {clusterError}</p>}
+      <nav className="tabs" aria-label="Dashboard sections">
+        <button
+          type="button"
+          className={tab === "cluster" ? "tab tab--active" : "tab"}
+          aria-pressed={tab === "cluster"}
+          onClick={() => setTab("cluster")}
+        >
+          Cluster
+        </button>
+        <button
+          type="button"
+          className={tab === "api" ? "tab tab--active" : "tab"}
+          aria-pressed={tab === "api"}
+          onClick={() => setTab("api")}
+        >
+          API
+        </button>
+        <button
+          type="button"
+          className={tab === "about" ? "tab tab--active" : "tab"}
+          aria-pressed={tab === "about"}
+          onClick={() => setTab("about")}
+        >
+          About
+        </button>
+      </nav>
 
-      <div className="main">
-        <nav className="nav tabs">
-          <button
-            type="button"
-            className={`nav-tab tab ${tab === "cluster" ? "active tab--active" : ""}`}
-            onClick={() => setTab("cluster")}
-            data-testid="cluster-tab"
-          >
-            Cluster
-          </button>
-          <button
-            type="button"
-            className={`nav-tab tab ${tab === "api" ? "active tab--active" : ""}`}
-            onClick={() => setTab("api")}
-            data-testid="api-tab"
-          >
-            API
-          </button>
-          <button
-            type="button"
-            className={`nav-tab tab ${tab === "about" ? "active tab--active" : ""}`}
-            onClick={() => setTab("about")}
-            data-testid="about-tab"
-          >
-            About
-          </button>
-        </nav>
+      <main className="content">
+        {clusterError && <p className="error">cluster: {clusterError}</p>}
 
-        <div className="content">
-          {tab === "cluster" ? (
-            <>
-              <div className="nodes">
-                {ids.map((id) => (
-                  <NodeCard key={id} id={id} status={statuses[id]} error={statusErrors[id]} />
-                ))}
-              </div>
+        {tab === "cluster" ? (
+          <>
+            <div className="nodes">
+              {ids.map((id) => (
+                <NodeCard key={id} id={id} status={statuses[id]} error={statusErrors[id]} />
+              ))}
+            </div>
 
-              <KVForm />
-              <Keys />
-            </>
-          ) : tab === "api" ? (
-            <Playground />
-          ) : (
-            <About />
-          )}
-        </div>
-      </div>
+            <KVForm />
+            <Keys />
+          </>
+        ) : tab === "api" ? (
+          <Playground />
+        ) : (
+          <About />
+        )}
+      </main>
 
       <footer className="footer">
         <div className="footer-content">
@@ -189,6 +219,6 @@ export default function App() {
           <p className="footer-text">© 2026 Distributed Key-Value Store</p>
         </div>
       </footer>
-    </main>
+    </div>
   );
 }
