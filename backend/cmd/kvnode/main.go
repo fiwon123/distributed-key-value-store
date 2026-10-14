@@ -158,7 +158,21 @@ func (b *raftBackend) Put(key, value string) error {
 	return b.propose(data)
 }
 
+// Delete removes a key through the raft log and reports whether it existed.
+// Like Get and List it is leader-only: only the leader can prove the key was
+// present before the delete is proposed. The httpapi handler maps false to 404
+// so deleting a missing key is not reported as success.
+//
+// A concurrent delete of the same key can still race (both callers may see it
+// present); making that linearizable would require returning apply results
+// through Raft.Propose, which is intentionally out of scope here.
 func (b *raftBackend) Delete(key string) (bool, error) {
+	if b.node.Status().Role != "leader" {
+		return false, httpapi.ErrUnavailable
+	}
+	if _, ok := b.store.Get(key); !ok {
+		return false, nil
+	}
 	data, err := kv.Command{Op: kv.OpDelete, Key: key}.Encode()
 	if err != nil {
 		return false, err
