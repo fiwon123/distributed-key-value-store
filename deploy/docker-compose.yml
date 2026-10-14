@@ -9,7 +9,9 @@
 # Data lives in named volumes, so a container restart recovers its log.
 #
 # Writes must reach the leader; a follower answers 503 with X-Raft-Leader.
-# `scripts/cluster-smoke.sh` exercises the same topology with local processes.
+# `scripts/cluster-smoke.sh` exercises the same topology with local processes
+# (a one-shot check); `scripts/cluster-local.sh` runs the same topology
+# persistently on the host without docker.
 
 name: distributed-key-value-store-cluster
 
