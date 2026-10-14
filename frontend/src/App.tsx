@@ -5,12 +5,13 @@ import { Keys } from "./components/Keys";
 import { NodeCard } from "./components/NodeCard";
 import { Playground } from "./components/Playground";
 import { Guide } from "./components/Guide";
+import { Learn } from "./components/Learn";
 import { useKVConsole } from "./hooks/useKVConsole";
 import { useTheme } from "./hooks/useTheme";
 import type { ClusterInfo, Status } from "./types";
 import "./styles.css";
 
-type Tab = "cluster" | "api" | "guide";
+type Tab = "cluster" | "api" | "guide" | "learn";
 
 function statusPath(self: string, id: string): string {
   return id === self ? "/v1/status" : `/node/${encodeURIComponent(id)}/v1/status`;
@@ -180,6 +181,14 @@ export default function App() {
         >
           Guide
         </button>
+        <button
+          type="button"
+          className={tab === "learn" ? "tab tab--active" : "tab"}
+          aria-pressed={tab === "learn"}
+          onClick={() => setTab("learn")}
+        >
+          Learn
+        </button>
       </nav>
 
       <main className="content">
@@ -227,8 +236,10 @@ export default function App() {
           </>
         ) : tab === "api" ? (
           <Playground />
-        ) : (
+        ) : tab === "guide" ? (
           <Guide />
+        ) : (
+          <Learn />
         )}
       </main>
 

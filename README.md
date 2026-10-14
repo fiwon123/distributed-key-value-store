@@ -224,6 +224,101 @@ survivor takes over.
   is caught up with the leader's snapshot via the `InstallSnapshot` RPC instead
   of the missing entries.
 
+## Theoretical Foundations
+
+A Raft-based key-value store sits at the intersection of several areas of
+theoretical computer science. This section summarizes the ideas the code exists
+to demonstrate — and states plainly where this implementation sits.
+
+### 1. Consensus Theory
+
+The core problem is **distributed consensus**: getting multiple nodes to agree on
+a sequence of operations despite failures. Raft is a crash-fault-tolerant (CFT)
+protocol — it assumes nodes either work correctly or stop, never act maliciously
+(unlike Byzantine fault tolerance).
+
+**Safety properties** (what must never happen):
+
+- **Election Safety** — at most one leader per term.
+- **Leader Append-Only** — a leader never overwrites existing log entries.
+- **Log Matching** — if two logs share an entry at the same index and term, all
+  prior entries are identical.
+- **Leader Completeness** — any committed entry appears in all future leaders'
+  logs.
+
+**Liveness properties** (what must eventually happen):
+
+- A leader is eventually elected.
+- Log entries are eventually committed.
+
+### 2. Replicated State Machines
+
+Raft implements **state machine replication**: each node runs the same
+deterministic state machine (the KV map) and applies the same sequence of
+commands in the same order. If all nodes start in the same initial state and
+apply the same operations, they reach the same final state — that equivalence is
+the fundamental correctness argument.
+
+![Request flow: client to the HTTP API, to the KV state machine, to Raft, to the persistent log, with peer-to-peer RPC between nodes.](docs/architecture.svg)
+
+### 3. CAP Theorem
+
+The CAP theorem (Brewer's theorem, formalized by Gilbert & Lynch, 2002) states
+that during a **network partition** a system must choose between **C**onsistency
+and **A**vailability (partition tolerance is not optional on a real network).
+This store is a **CP** system: it keeps consistency and partition tolerance and
+gives up availability when a majority is unreachable — writes are rejected
+rather than accepted best-effort.
+
+![CAP triangle. CP is highlighted: this store sits on the Consistency + Partition tolerance edge.](docs/cap.svg)
+
+A refinement is **PACELC**: even when there is **E**lse no partition, there is a
+tradeoff between **L**atency and **C**onsistency. Waiting for a majority
+acknowledgement is slower than answering from a single node, but stronger.
+
+### 4. Quorum / Majority Logic
+
+The structural backbone is **quorum intersection**: in a cluster of `2f+1`
+nodes, any two quorums of size `f+1` must overlap. That overlap is what
+guarantees safety — no two conflicting leaders or commits can both succeed. With
+N nodes the quorum this implementation requires is `⌊N/2⌋ + 1` (see
+`Node.majority()`), which is correct for even sizes too, so even-sized clusters
+cannot elect two leaders.
+
+![Quorum intersection in a five-node cluster: two quorums of three nodes overlap on the middle node.](docs/quorum.svg)
+
+### 5. Consistency Models
+
+| Model | Guarantee |
+|---|---|
+| Linearizability (strongest) | Operations appear to happen atomically in real-time order |
+| Sequential consistency | Some global order consistent with each client's program order |
+| Causal consistency | Preserves happens-before relationships |
+| Eventual consistency (weakest) | All replicas converge eventually |
+
+Raft naturally provides **linearizable writes** (committed entries are
+totally ordered). Reads require additional mechanisms — ReadIndex or lease reads
+— to also be linearizable; this MVP serves reads from the leader instead (see
+[Design choices](#design-choices)).
+
+### 6. Formal Verification & Model Checking
+
+The Raft paper and implementations use **TLA+** (Leslie Lamport's specification
+language) to specify and verify safety properties. Model checkers exhaustively
+explore the state space to prove that no safety violation is possible.
+
+### 7. The Asynchronous Model
+
+Raft assumes an **asynchronous network** (no bound on message delay) and uses
+randomized election timeouts to break symmetry. This connects to the **FLP
+impossibility** result (Fischer, Lynch & Paterson, 1985): deterministic
+consensus is impossible in a purely asynchronous system with even one crash
+fault — randomized timeouts are the standard workaround.
+
+> **In summary**, the theoretical pillars here are: consensus (safety +
+> liveness), state machine replication, quorum arithmetic, CAP/PACELC tradeoffs,
+> linearizability, and the asynchronous model with randomized liveness.
+
 ## Build order
 
 1. Single-node: HTTP server + in-memory map, fully tested

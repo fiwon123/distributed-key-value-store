@@ -95,6 +95,21 @@ describe("App", () => {
     expect(cli).toHaveTextContent("make cluster-up");
   });
 
+  it("shows the Learn tab with the theoretical foundations", async () => {
+    stubClusterFetch();
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: "Learn" }));
+
+    expect(
+      await screen.findByRole("heading", { name: "Theoretical Foundations" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "CAP Theorem" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Guide" })).not.toBeInTheDocument();
+  });
+
   it("loads a clicked stored key into the console", async () => {
     stubClusterFetch();
     const user = userEvent.setup();
