@@ -432,15 +432,55 @@ dd {
   min-height: 1.2em;
 }
 
-/* A one-line orientation note shown under the node cards (e.g. single-node). */
-.hint {
+/* Purpose line at the top of the Cluster tab. */
+.cluster__lead {
+  margin: 0 0 1rem;
+  max-width: 62ch;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+/* A button that reads as an inline link, e.g. jumping to the Guide tab. */
+.link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.link:hover {
+  text-decoration: none;
+}
+
+/* Explains single-node mode on the Cluster tab. */
+.callout {
   margin: 0 0 1.5rem;
-  padding: 0.6rem 0.8rem;
-  border: 1px dashed var(--border);
+  padding: 0.9rem 1.1rem;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
   border-radius: var(--radius-sm);
   background: var(--bg-inset);
-  color: var(--text-muted);
-  font-size: 0.85rem;
+}
+
+.callout h3 {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+}
+
+.callout p {
+  margin: 0 0 0.5rem;
+  font-size: 0.9rem;
+}
+
+.callout pre {
+  margin: 0 0 0.5rem;
+}
+
+.callout > :last-child {
+  margin-bottom: 0;
 }
 
 /* ---------------------------------------------------------------------------
