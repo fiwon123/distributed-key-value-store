@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 260" role="img" aria-label="CAP triangle. A system keeps two of Consistency, Availability, and Partition tolerance during a partition. This store sits on the Consistency + Partition tolerance edge (CP).">
+  <style>
+    .fs { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    .text { fill: #1f2328; font-size: 14px; font-weight: 600; }
+    .muted { fill: #57606a; font-size: 12px; }
+    .side { stroke: #d0d7de; stroke-width: 2; fill: none; }
+    .cp { stroke: #0969da; stroke-width: 4; fill: none; }
+    .cpfill { fill: #0969da; }
+    .dot { fill: #0969da; }
+    @media (prefers-color-scheme: dark) {
+      .text { fill: #e6edf3; }
+      .muted { fill: #8b949e; }
+      .side { stroke: #30363d; }
+      .cp { stroke: #4f8cff; }
+      .cpfill { fill: #4f8cff; }
+      .dot { fill: #4f8cff; }
+    }
+  </style>
+
+  <!-- Triangle -->
+  <line class="side" x1="40" y1="220" x2="380" y2="220"/>
+  <line class="side" x1="40" y1="220" x2="210" y2="40"/>
+  <line class="cp" x1="210" y1="40" x2="380" y2="220"/>
+
+  <!-- Vertices -->
+  <circle class="dot" cx="210" cy="40" r="5"/>
+  <circle class="dot" cx="40" cy="220" r="5"/>
+  <circle class="dot" cx="380" cy="220" r="5"/>
+
+  <text class="fs text" x="210" y="26" text-anchor="middle">Consistency</text>
+  <text class="fs text" x="34" y="240" text-anchor="start">Availability</text>
+  <text class="fs text" x="386" y="240" text-anchor="end">Partition tolerance</text>
+
+  <!-- CP emphasis -->
+  <text class="fs muted" x="250" y="120" text-anchor="middle">CP</text>
+  <text class="fs muted" x="250" y="138" text-anchor="middle">this store</text>
+</svg>

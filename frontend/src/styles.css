@@ -673,6 +673,139 @@ button:disabled {
 }
 
 /* ---------------------------------------------------------------------------
+   Learn (theoretical foundations)
+--------------------------------------------------------------------------- */
+.learn {
+  max-width: 46rem;
+  margin-inline: auto;
+}
+
+.learn h2 {
+  margin-top: 0;
+}
+
+.learn h3 {
+  margin-top: 1.75rem;
+}
+
+.learn h4 {
+  margin: 0 0 0.4rem;
+  font-size: 0.9rem;
+}
+
+.learn ul {
+  padding-left: 1.25rem;
+}
+
+.learn li {
+  margin-bottom: 0.4rem;
+}
+
+.learn__columns {
+  display: grid;
+  gap: 1rem 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+}
+
+.learn__figure {
+  display: block;
+  width: 100%;
+  max-width: 22rem;
+  height: auto;
+  margin: 1rem auto;
+}
+
+.learn__figure--wide {
+  max-width: 34rem;
+}
+
+.learn__figure text {
+  font-family: var(--font-sans);
+}
+
+.learn__label {
+  fill: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.learn__sub {
+  fill: var(--text-muted);
+  font-size: 12px;
+}
+
+.learn__sub--accent {
+  fill: var(--accent);
+}
+
+.learn__sub--candidate {
+  fill: var(--candidate);
+}
+
+.learn__index {
+  fill: var(--text-muted);
+  font-size: 12px;
+}
+
+.learn__side {
+  stroke: var(--border-strong);
+  stroke-width: 2;
+  fill: none;
+}
+
+.learn__emph {
+  stroke: var(--accent);
+  stroke-width: 4;
+  fill: none;
+}
+
+.learn__dot {
+  fill: var(--accent);
+}
+
+.learn__node {
+  fill: var(--bg-elevated);
+  stroke: var(--border-strong);
+  stroke-width: 2;
+}
+
+.learn__overlap {
+  fill: var(--accent);
+  stroke: var(--accent);
+}
+
+.learn__qa {
+  stroke: var(--accent);
+  stroke-width: 2;
+  fill: none;
+}
+
+.learn__qb {
+  stroke: var(--candidate);
+  stroke-width: 2;
+  fill: none;
+}
+
+.learn__table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.75rem 0;
+  font-size: 0.9rem;
+}
+
+.learn__table th,
+.learn__table td {
+  border: 1px solid var(--border);
+  padding: 0.4rem 0.6rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.learn__table th {
+  background: var(--bg-inset);
+}
+
+/* ---------------------------------------------------------------------------
    Utilities
 --------------------------------------------------------------------------- */
 .muted {

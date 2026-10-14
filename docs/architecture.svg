@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 470" role="img" aria-label="Request flow: client to HTTP API to the KV state machine to Raft to the persistent log, with peer-to-peer RPC between nodes.">
+  <style>
+    .fs { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    .box { fill: #f6f8fa; stroke: #d0d7de; }
+    .peers { fill: #eef2ff; stroke: #a5b4fc; }
+    .text { fill: #1f2328; font-size: 15px; font-weight: 600; }
+    .sub { fill: #57606a; font-size: 12px; }
+    .muted { fill: #8b949e; font-size: 12px; }
+    .edge { stroke: #8b949e; stroke-width: 2; fill: none; }
+    .accent { stroke: #0969da; stroke-width: 2.5; fill: none; }
+    .accentfill { fill: #0969da; }
+    @media (prefers-color-scheme: dark) {
+      .box { fill: #161b22; stroke: #30363d; }
+      .peers { fill: #17203a; stroke: #3b4a75; }
+      .text { fill: #e6edf3; }
+      .sub { fill: #8b949e; }
+      .muted { fill: #6e7681; }
+      .edge { stroke: #6e7681; }
+      .accent { stroke: #4f8cff; }
+      .accentfill { fill: #4f8cff; }
+    }
+  </style>
+
+  <!-- Client -->
+  <rect class="box" x="40" y="20" rx="8" width="320" height="52"/>
+  <text class="fs text" x="200" y="44" text-anchor="middle">Client</text>
+  <text class="fs sub" x="200" y="61" text-anchor="middle">curl / dashboard</text>
+
+  <!-- arrow -->
+  <line class="edge" x1="200" y1="72" x2="200" y2="104"/>
+  <polygon class="accentfill" points="195,102 205,102 200,112"/>
+
+  <!-- HTTP API -->
+  <rect class="box" x="40" y="112" rx="8" width="320" height="64"/>
+  <text class="fs text" x="200" y="139" text-anchor="middle">HTTP API</text>
+  <text class="fs sub" x="200" y="159" text-anchor="middle">PUT / GET / DELETE /v1/kv/{key}</text>
+
+  <line class="edge" x1="200" y1="176" x2="200" y2="208"/>
+  <polygon class="accentfill" points="195,206 205,206 200,216"/>
+
+  <!-- State machine -->
+  <rect class="box" x="40" y="216" rx="8" width="320" height="64"/>
+  <text class="fs text" x="200" y="243" text-anchor="middle">State machine</text>
+  <text class="fs sub" x="200" y="263" text-anchor="middle">in-memory KV map</text>
+
+  <line class="edge" x1="200" y1="280" x2="200" y2="312"/>
+  <polygon class="accentfill" points="195,310 205,310 200,320"/>
+
+  <!-- Raft -->
+  <rect class="accent" x="40" y="320" rx="8" width="320" height="76"/>
+  <text class="fs text" x="200" y="350" text-anchor="middle">Raft</text>
+  <text class="fs sub" x="200" y="370" text-anchor="middle">leader election · log replication</text>
+  <text class="fs sub" x="200" y="386" text-anchor="middle">commit index · heartbeats</text>
+
+  <line class="edge" x1="200" y1="396" x2="200" y2="424"/>
+  <polygon class="accentfill" points="195,422 205,422 200,432"/>
+
+  <!-- Log -->
+  <rect class="box" x="40" y="432" rx="8" width="320" height="30"/>
+  <text class="fs sub" x="200" y="452" text-anchor="middle">persistent log + snapshots (disk)</text>
+
+  <!-- Peers -->
+  <rect class="peers" x="470" y="320" rx="8" width="250" height="76"/>
+  <text class="fs text" x="595" y="350" text-anchor="middle">Peer nodes</text>
+  <text class="fs sub" x="595" y="372" text-anchor="middle">followers on other hosts</text>
+
+  <line class="accent" x1="360" y1="358" x2="470" y2="358"/>
+  <polygon class="accentfill" points="466,353 466,363 476,358"/>
+  <polygon class="accentfill" points="364,353 364,363 354,358"/>
+  <text class="fs muted" x="415" y="348" text-anchor="middle">RPC</text>
+</svg>
