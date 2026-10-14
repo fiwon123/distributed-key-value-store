@@ -2,8 +2,9 @@ import { useEffect, useState } from "react";
 import { listKeys } from "../api";
 
 // Keys lists the keys currently in the replicated store, refreshing
-// periodically so it reflects puts and deletes made elsewhere.
-export function Keys() {
+// periodically so it reflects puts and deletes made elsewhere. Clicking a key
+// loads it into the console (GET), so it can be read, edited, or deleted.
+export function Keys({ onSelect }: { onSelect: (key: string) => void }) {
   const [keys, setKeys] = useState<string[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -49,7 +50,16 @@ export function Keys() {
       ) : (
         <ul className="key-list">
           {keys.map((key) => (
-            <li key={key}>{key}</li>
+            <li key={key}>
+              <button
+                type="button"
+                className="key-list__item"
+                onClick={() => onSelect(key)}
+                title={`Load ${key}`}
+              >
+                {key}
+              </button>
+            </li>
           ))}
         </ul>
       )}

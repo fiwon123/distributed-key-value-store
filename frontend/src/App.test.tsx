@@ -28,7 +28,10 @@ function stubClusterFetch() {
       return json(statusPayload("node2", "follower"));
     }
     if (url === "/v1/kv") {
-      return json({ keys: [] });
+      return json({ keys: ["greeting"] });
+    }
+    if (url === "/v1/kv/greeting") {
+      return json({ key: "greeting", value: "hello" });
     }
     return json({ error: "not found" }, 404);
   });
@@ -75,16 +78,45 @@ describe("App", () => {
     expect(await screen.findByRole("heading", { name: "node1" })).toBeInTheDocument();
   });
 
-  it("shows the About tab with usage instructions", async () => {
+  it("shows the Guide tab with a visual walkthrough", async () => {
     stubClusterFetch();
     const user = userEvent.setup();
 
     render(<App />);
 
-    await user.click(screen.getByRole("button", { name: "About" }));
+    await user.click(screen.getByRole("button", { name: "Guide" }));
 
-    expect(await screen.findByRole("heading", { name: "About" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "How to use" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Guide" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Using the dashboard" })).toBeInTheDocument();
+  });
+
+  it("loads a clicked stored key into the console", async () => {
+    stubClusterFetch();
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "greeting" }));
+
+    expect(await screen.findByText("GET greeting: hello")).toBeInTheDocument();
+    expect(screen.getByLabelText("value")).toHaveValue("hello");
+  });
+
+  it("hints how to run a multi-node cluster in single-node mode", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url === "/cluster") return json({ self: "node1", peers: [] });
+        if (url === "/v1/status") return json(statusPayload("node1", "leader"));
+        if (url === "/v1/kv") return json({ keys: [] });
+        return json({ error: "not found" }, 404);
+      }),
+    );
+
+    render(<App />);
+
+    expect(await screen.findByText(/Single-node mode/)).toBeInTheDocument();
   });
 
   it("toggles the theme and reflects it on the document", async () => {

@@ -114,6 +114,14 @@ describe("Playground", () => {
     expect(calls[0][1].body).toBe('{"value":"hi"}');
   });
 
+  it("links to the Swagger UI for the full contract", () => {
+    stubFetch(json({}));
+
+    render(<Playground />);
+
+    expect(screen.getByRole("link", { name: "Swagger UI" })).toHaveAttribute("href", "/docs");
+  });
+
   it("shows a network error instead of swallowing it", async () => {
     vi.stubGlobal(
       "fetch",
