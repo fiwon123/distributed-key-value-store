@@ -144,13 +144,13 @@ describe("App", () => {
 
     render(<App />);
 
-    // No stored theme and no OS signal in jsdom → light.
-    expect(document.documentElement.getAttribute("data-theme")).toBe("light");
-
-    await user.click(screen.getByRole("button", { name: /switch to dark mode/i }));
-
+    // Dark is the default when nothing is stored.
     expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
-    expect(localStorage.getItem("theme")).toBe("dark");
-    expect(screen.getByRole("button", { name: /switch to light mode/i })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /switch to light mode/i }));
+
+    expect(document.documentElement.getAttribute("data-theme")).toBe("light");
+    expect(localStorage.getItem("theme")).toBe("light");
+    expect(screen.getByRole("button", { name: /switch to dark mode/i })).toBeInTheDocument();
   });
 });

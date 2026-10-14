@@ -5,17 +5,15 @@ type Theme = "light" | "dark";
 export function useTheme() {
   const [theme, setTheme] = useState<Theme>(() => {
     if (typeof window === "undefined") {
-      return "light";
+      return "dark";
     }
-    const stored = localStorage.getItem("theme") as Theme | null;
-    if (stored) {
+    const stored = localStorage.getItem("theme");
+    if (stored === "light" || stored === "dark") {
       return stored;
     }
-    if (typeof window.matchMedia === "function") {
-      const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-      return prefersDark ? "dark" : "light";
-    }
-    return "light";
+    // Dark is the default: it matches the :root tokens in styles.css and the
+    // no-FOUC script in index.html. Only an explicit toggle changes it.
+    return "dark";
   });
 
   useEffect(() => {

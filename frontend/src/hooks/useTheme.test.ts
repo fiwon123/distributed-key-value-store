@@ -22,24 +22,22 @@ describe("useTheme", () => {
     expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
   });
 
-  it("falls back to the OS preference when nothing is stored", () => {
+  it("defaults to dark when nothing is stored", () => {
+    const { result } = renderHook(() => useTheme());
+
+    expect(result.current.theme).toBe("dark");
+    expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
+  });
+
+  it("ignores the OS preference and stays dark when nothing is stored", () => {
     vi.stubGlobal(
       "matchMedia",
-      vi.fn(() => ({ matches: true })) as unknown as typeof window.matchMedia,
+      vi.fn(() => ({ matches: false })) as unknown as typeof window.matchMedia,
     );
 
     const { result } = renderHook(() => useTheme());
 
     expect(result.current.theme).toBe("dark");
-  });
-
-  it("defaults to light when there is no stored theme or OS signal", () => {
-    vi.stubGlobal("matchMedia", undefined);
-
-    const { result } = renderHook(() => useTheme());
-
-    expect(result.current.theme).toBe("light");
-    expect(document.documentElement.getAttribute("data-theme")).toBe("light");
   });
 
   it("toggles the theme and persists it", () => {
