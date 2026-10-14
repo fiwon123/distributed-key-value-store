@@ -103,10 +103,10 @@ web-check:
 cluster-smoke:
 	scripts/cluster-smoke.sh
 
-cluster-local-up: ## Start a persistent 3-node cluster with local processes (no docker)
+cluster-local-up: ## Start a persistent local cluster, 3 nodes (no docker); NODE_COUNT=5 for a different size
 	scripts/cluster-local.sh up
 
-cluster-local-down: ## Stop the local 3-node cluster
+cluster-local-down: ## Stop the local cluster
 	scripts/cluster-local.sh down
 
 cluster-local-status: ## Show the local cluster's node roles

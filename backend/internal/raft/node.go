@@ -409,9 +409,12 @@ func (n *Node) electionTimeout() time.Duration {
 }
 
 // majority is the number of votes/confirmations needed from a cluster of
-// n.peers+1 nodes (self included).
+// n.peers+1 nodes (self included): ⌊N/2⌋ + 1. With the self-inclusive size
+// spelled out, that is (len(n.peers)+1)/2 + 1. Note this is NOT the same as
+// len(n.peers)/2 + 1, which undercounts by one for even-sized clusters and
+// would let a minority elect a leader (split brain).
 func (n *Node) majority() int {
-	return len(n.peers)/2 + 1
+	return (len(n.peers)+1)/2 + 1
 }
 
 // runElection implements the candidate side of §5.2: bump the term, vote for

@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# cluster-local.sh — run a persistent 3-node kvnode cluster with local
-# processes (no docker), so the dashboard can show followers and leader
-# failover. Unlike cluster-smoke.sh — a one-shot pass/fail check that tears its
-# nodes down on exit — these nodes stay up until `cluster-local-down`.
+# cluster-local.sh — run a persistent kvnode cluster with local processes (no
+# docker), so the dashboard can show followers and leader failover. Three nodes
+# by default; set NODE_COUNT for a different size. Unlike cluster-smoke.sh — a
+# one-shot pass/fail check that tears its nodes down on exit — these nodes stay
+# up until `cluster-local-down`.
 #
 # Usage:
 #   scripts/cluster-local.sh up      start the cluster (leaves it running)
@@ -12,8 +13,13 @@ set -euo pipefail
 #   scripts/cluster-local.sh status  print each node's raft role
 #
 # State (pids, logs, data, built binary) lives under .cluster/ (gitignored).
-# Each `up` starts a fresh cluster — any previous data is cleared. Override the
-# starting port with BASE_PORT (default 9081).
+# Each `up` starts a fresh cluster — any previous data is cleared.
+#
+# Environment overrides:
+#   NODE_COUNT  number of nodes to start (default 3); any size ≥ 1 is allowed —
+#               quorum is ⌊N/2⌋ + 1, so even sizes are safe (e.g. NODE_COUNT=4
+#               needs 3 of 4 to commit).
+#   BASE_PORT   starting port (default 9081); node i listens on BASE_PORT+i-1.
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
@@ -29,6 +35,12 @@ DATADIR="$STATE_DIR/data"
 
 log() { printf '==> %s\n' "$*"; }
 die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
+
+# NODE_COUNT must be a positive integer before it feeds any arithmetic.
+case "$NODE_COUNT" in
+  '' | *[!0-9]*) die "NODE_COUNT must be a positive integer, got '$NODE_COUNT'" ;;
+esac
+[ "$NODE_COUNT" -ge 1 ] || die "NODE_COUNT must be at least 1, got '$NODE_COUNT'"
 
 node_ids() {
   local i
