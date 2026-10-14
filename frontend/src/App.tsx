@@ -187,19 +187,35 @@ export default function App() {
 
         {tab === "cluster" ? (
           <>
+            <p className="cluster__lead">
+              A replicated key-value store: writes go through the <strong>leader</strong>, commit to
+              a majority, and apply on every node — so committed data survives a node failure.{" "}
+              <button type="button" className="link" onClick={() => setTab("guide")}>
+                How it works
+              </button>
+            </p>
+
+            {cluster && cluster.peers.length === 0 && (
+              <div className="callout" role="note">
+                <h3>Why is there only one node?</h3>
+                <p>
+                  This node was started without <code>-peers</code>, so it is a cluster of one and
+                  elected itself leader. Start three nodes and this tab shows them all:
+                </p>
+                <pre>
+                  <code>make cluster-local-up</code>
+                </pre>
+                <p className="muted">
+                  Then open <code>http://127.0.0.1:9081</code> — one leader, two followers.
+                </p>
+              </div>
+            )}
+
             <div className="nodes">
               {ids.map((id) => (
                 <NodeCard key={id} id={id} status={statuses[id]} error={statusErrors[id]} />
               ))}
             </div>
-
-            {cluster && cluster.peers.length === 0 && (
-              <p className="hint">
-                Single-node mode — start a 3-node cluster with <code>make cluster-smoke</code>{" "}
-                (local processes) or <code>make cluster-up</code> (Docker) to watch followers and
-                leader failover.
-              </p>
-            )}
 
             <KVForm state={kv} />
             <Keys onSelect={kv.select} busy={kv.busy} />

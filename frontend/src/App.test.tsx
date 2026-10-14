@@ -88,6 +88,11 @@ describe("App", () => {
 
     expect(await screen.findByRole("heading", { name: "Guide" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Using the dashboard" })).toBeInTheDocument();
+
+    // The Guide distinguishes all three ways to run a cluster.
+    const cli = screen.getByText(/make cluster-local-up/);
+    expect(cli).toHaveTextContent("make cluster-smoke");
+    expect(cli).toHaveTextContent("make cluster-up");
   });
 
   it("loads a clicked stored key into the console", async () => {
@@ -102,7 +107,7 @@ describe("App", () => {
     expect(screen.getByLabelText("value")).toHaveValue("hello");
   });
 
-  it("hints how to run a multi-node cluster in single-node mode", async () => {
+  it("explains why a single-node cluster shows one card", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo | URL) => {
@@ -116,7 +121,21 @@ describe("App", () => {
 
     render(<App />);
 
-    expect(await screen.findByText(/Single-node mode/)).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Why is there only one node?" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("make cluster-local-up")).toBeInTheDocument();
+  });
+
+  it("shows the purpose line but hides the single-node callout when peers exist", async () => {
+    stubClusterFetch();
+
+    render(<App />);
+
+    expect(await screen.findByText(/replicated key-value store/i)).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Why is there only one node?" }),
+    ).not.toBeInTheDocument();
   });
 
   it("toggles the theme and reflects it on the document", async () => {
