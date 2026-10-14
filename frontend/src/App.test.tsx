@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 
 function json(body: unknown, status = 200): Response {
@@ -14,28 +14,44 @@ function statusPayload(id: string, role: string) {
   return { id, role, term: 3, leader: "node1", commitIndex: 2, lastApplied: 2, peers: 1 };
 }
 
+// stubClusterFetch stands in for the cluster/status/key endpoints App polls.
+function stubClusterFetch() {
+  const mock = vi.fn(async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url === "/cluster") {
+      return json({ self: "node1", peers: ["node2"] });
+    }
+    if (url === "/v1/status") {
+      return json(statusPayload("node1", "leader"));
+    }
+    if (url === "/node/node2/v1/status") {
+      return json(statusPayload("node2", "follower"));
+    }
+    if (url === "/v1/kv") {
+      return json({ keys: ["greeting"] });
+    }
+    if (url === "/v1/kv/greeting") {
+      return json({ key: "greeting", value: "hello" });
+    }
+    return json({ error: "not found" }, 404);
+  });
+  vi.stubGlobal("fetch", mock);
+  return mock;
+}
+
 describe("App", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    document.documentElement.removeAttribute("data-theme");
+  });
+
   afterEach(() => {
+    vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
 
   it("renders a card per cluster node with its role", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL) => {
-        const url = String(input);
-        if (url === "/cluster") {
-          return json({ self: "node1", peers: ["node2"] });
-        }
-        if (url === "/v1/status") {
-          return json(statusPayload("node1", "leader"));
-        }
-        if (url === "/node/node2/v1/status") {
-          return json(statusPayload("node2", "follower"));
-        }
-        return json({ error: "not found" }, 404);
-      }),
-    );
+    stubClusterFetch();
 
     render(<App />);
 
@@ -46,22 +62,7 @@ describe("App", () => {
   });
 
   it("switches between the cluster and API tabs", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL) => {
-        const url = String(input);
-        if (url === "/cluster") {
-          return json({ self: "node1", peers: ["node2"] });
-        }
-        if (url === "/v1/status") {
-          return json(statusPayload("node1", "leader"));
-        }
-        if (url === "/node/node2/v1/status") {
-          return json(statusPayload("node2", "follower"));
-        }
-        return json({ error: "not found" }, 404);
-      }),
-    );
+    stubClusterFetch();
     const user = userEvent.setup();
 
     render(<App />);
@@ -75,5 +76,62 @@ describe("App", () => {
 
     await user.click(screen.getByRole("button", { name: "Cluster" }));
     expect(await screen.findByRole("heading", { name: "node1" })).toBeInTheDocument();
+  });
+
+  it("shows the Guide tab with a visual walkthrough", async () => {
+    stubClusterFetch();
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: "Guide" }));
+
+    expect(await screen.findByRole("heading", { name: "Guide" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Using the dashboard" })).toBeInTheDocument();
+  });
+
+  it("loads a clicked stored key into the console", async () => {
+    stubClusterFetch();
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "greeting" }));
+
+    expect(await screen.findByText("GET greeting: hello")).toBeInTheDocument();
+    expect(screen.getByLabelText("value")).toHaveValue("hello");
+  });
+
+  it("hints how to run a multi-node cluster in single-node mode", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url === "/cluster") return json({ self: "node1", peers: [] });
+        if (url === "/v1/status") return json(statusPayload("node1", "leader"));
+        if (url === "/v1/kv") return json({ keys: [] });
+        return json({ error: "not found" }, 404);
+      }),
+    );
+
+    render(<App />);
+
+    expect(await screen.findByText(/Single-node mode/)).toBeInTheDocument();
+  });
+
+  it("toggles the theme and reflects it on the document", async () => {
+    stubClusterFetch();
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    // No stored theme and no OS signal in jsdom → light.
+    expect(document.documentElement.getAttribute("data-theme")).toBe("light");
+
+    await user.click(screen.getByRole("button", { name: /switch to dark mode/i }));
+
+    expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
+    expect(localStorage.getItem("theme")).toBe("dark");
+    expect(screen.getByRole("button", { name: /switch to light mode/i })).toBeInTheDocument();
   });
 });

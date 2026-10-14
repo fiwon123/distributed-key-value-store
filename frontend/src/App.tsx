@@ -1,11 +1,16 @@
 import { useEffect, useState } from "react";
 import { fetchCluster, fetchStatus } from "./api";
 import { KVForm } from "./components/KVForm";
+import { Keys } from "./components/Keys";
 import { NodeCard } from "./components/NodeCard";
 import { Playground } from "./components/Playground";
+import { Guide } from "./components/Guide";
+import { useKVConsole } from "./hooks/useKVConsole";
+import { useTheme } from "./hooks/useTheme";
 import type { ClusterInfo, Status } from "./types";
+import "./styles.css";
 
-type Tab = "cluster" | "api";
+type Tab = "cluster" | "api" | "guide";
 
 function statusPath(self: string, id: string): string {
   return id === self ? "/v1/status" : `/node/${encodeURIComponent(id)}/v1/status`;
@@ -21,12 +26,45 @@ interface Polled {
   error?: string;
 }
 
+// Sun / moon glyphs for the theme toggle, drawn inline so there is no icon
+// dependency and rendering is consistent across platforms.
+function ThemeIcon({ theme }: { theme: "light" | "dark" }) {
+  return theme === "dark" ? (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+    </svg>
+  ) : (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+    </svg>
+  );
+}
+
 export default function App() {
   const [tab, setTab] = useState<Tab>("cluster");
   const [cluster, setCluster] = useState<ClusterInfo>();
   const [clusterError, setClusterError] = useState("");
   const [statuses, setStatuses] = useState<Record<string, Status>>({});
   const [statusErrors, setStatusErrors] = useState<Record<string, string>>({});
+  const { theme, toggleTheme } = useTheme();
+  const kv = useKVConsole();
 
   useEffect(() => {
     let cancelled = false;
@@ -44,24 +82,20 @@ export default function App() {
       }
     }
     void load();
-    const timer = setInterval(() => void load(), 5000);
-    return () => {
-      cancelled = true;
-      clearInterval(timer);
-    };
   }, []);
 
   useEffect(() => {
     if (!cluster) {
       return;
     }
-    const { self, peers } = cluster;
-    const ids = [self, ...peers];
     let cancelled = false;
 
     async function poll() {
-      const results: Polled[] = await Promise.all(
-        ids.map(async (id) => {
+      if (!cluster) return;
+      const self = cluster.self;
+      const ids = [self, ...cluster.peers];
+      const results = await Promise.all(
+        ids.map(async (id): Promise<Polled> => {
           try {
             return { id, status: await fetchStatus(statusPath(self, id)) };
           } catch (err) {
@@ -94,26 +128,38 @@ export default function App() {
   }, [cluster]);
 
   const ids = cluster ? [cluster.self, ...cluster.peers] : [];
+  const nextTheme = theme === "dark" ? "light" : "dark";
 
   return (
-    <main className="app">
-      <header className="app__header">
-        <h1>distributed key-value store</h1>
-        {cluster ? (
-          <p className="muted">
-            local node <strong>{cluster.self}</strong>
-          </p>
-        ) : (
-          <p className="muted">connecting…</p>
-        )}
+    <div className="app">
+      <header className="header">
+        <div className="header-content">
+          <div className="logo">
+            <img src="/favicon.svg" alt="" width="28" height="28" />
+            <span className="logo__title">Distributed Key-Value Store</span>
+            {cluster && (
+              <span className="logo__node muted">
+                local node <strong>{cluster.self}</strong>
+              </span>
+            )}
+          </div>
+          <button
+            type="button"
+            className="theme-toggle"
+            onClick={toggleTheme}
+            aria-label={`Switch to ${nextTheme} mode`}
+            title={`Switch to ${nextTheme} mode`}
+          >
+            <ThemeIcon theme={theme} />
+          </button>
+        </div>
       </header>
 
-      {clusterError && <p className="error">cluster: {clusterError}</p>}
-
-      <nav className="tabs">
+      <nav className="tabs" aria-label="Dashboard sections">
         <button
           type="button"
           className={tab === "cluster" ? "tab tab--active" : "tab"}
+          aria-pressed={tab === "cluster"}
           onClick={() => setTab("cluster")}
         >
           Cluster
@@ -121,25 +167,68 @@ export default function App() {
         <button
           type="button"
           className={tab === "api" ? "tab tab--active" : "tab"}
+          aria-pressed={tab === "api"}
           onClick={() => setTab("api")}
         >
           API
         </button>
+        <button
+          type="button"
+          className={tab === "guide" ? "tab tab--active" : "tab"}
+          aria-pressed={tab === "guide"}
+          onClick={() => setTab("guide")}
+        >
+          Guide
+        </button>
       </nav>
 
-      {tab === "cluster" ? (
-        <>
-          <div className="nodes">
-            {ids.map((id) => (
-              <NodeCard key={id} id={id} status={statuses[id]} error={statusErrors[id]} />
-            ))}
-          </div>
+      <main className="content">
+        {clusterError && <p className="error">cluster: {clusterError}</p>}
 
-          <KVForm />
-        </>
-      ) : (
-        <Playground />
-      )}
-    </main>
+        {tab === "cluster" ? (
+          <>
+            <div className="nodes">
+              {ids.map((id) => (
+                <NodeCard key={id} id={id} status={statuses[id]} error={statusErrors[id]} />
+              ))}
+            </div>
+
+            {cluster && cluster.peers.length === 0 && (
+              <p className="hint">
+                Single-node mode — start a 3-node cluster with <code>make cluster-smoke</code>{" "}
+                (local processes) or <code>make cluster-up</code> (Docker) to watch followers and
+                leader failover.
+              </p>
+            )}
+
+            <KVForm state={kv} />
+            <Keys onSelect={kv.select} busy={kv.busy} />
+          </>
+        ) : tab === "api" ? (
+          <Playground />
+        ) : (
+          <Guide />
+        )}
+      </main>
+
+      <footer className="footer">
+        <div className="footer-content">
+          <div className="footer-links">
+            <a
+              href="https://github.com/fiwon123/distributed-key-value-store"
+              target="_blank"
+              rel="noreferrer"
+              className="footer-link"
+            >
+              GitHub
+            </a>
+            <a href="/docs" target="_blank" rel="noreferrer" className="footer-link">
+              API Docs
+            </a>
+          </div>
+          <p className="footer-text">© 2026 Distributed Key-Value Store</p>
+        </div>
+      </footer>
+    </div>
   );
 }

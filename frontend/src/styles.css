@@ -1,46 +1,313 @@
+/* ---------------------------------------------------------------------------
+   Design tokens
+   Dark is the default (and the fallback when JS is disabled); the no-FOUC
+   script in index.html sets data-theme on <html> before first paint, and
+   useTheme() keeps it in sync afterwards.
+--------------------------------------------------------------------------- */
 :root {
-  color-scheme: light dark;
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color-scheme: dark;
+
+  --bg: #0f1115;
+  --bg-elevated: #161a21;
+  --bg-inset: #0b0d11;
+  --border: #2a2f3a;
+  --border-strong: #3a4150;
+  --text: #e6e6e6;
+  --text-muted: #9aa4b2;
+  --accent: #4f8cff;
+  --accent-contrast: #06111f;
+  --accent-soft: rgba(79, 140, 255, 0.14);
+  --leader: #4f8cff;
+  --leader-contrast: #06111f;
+  --candidate: #f5a623;
+  --candidate-contrast: #1a1203;
+  --ok: #4fd18b;
+  --error: #ff6b6b;
+  --header-bg: rgba(15, 17, 21, 0.82);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.25);
+
+  --radius: 0.6rem;
+  --radius-sm: 0.4rem;
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  font-family: var(--font-sans);
   line-height: 1.5;
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+
+  --bg: #f6f7f9;
+  --bg-elevated: #ffffff;
+  --bg-inset: #eef1f5;
+  --border: #d7dce4;
+  --border-strong: #c2c9d4;
+  --text: #1a1f29;
+  --text-muted: #5b6472;
+  --accent: #2563eb;
+  --accent-contrast: #ffffff;
+  --accent-soft: rgba(37, 99, 235, 0.1);
+  --leader: #2563eb;
+  --leader-contrast: #ffffff;
+  --candidate: #b45309;
+  --candidate-contrast: #ffffff;
+  --ok: #15803d;
+  --error: #dc2626;
+  --header-bg: rgba(246, 247, 249, 0.82);
+  --shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 8px 24px rgba(16, 24, 40, 0.08);
+}
+
+/* ---------------------------------------------------------------------------
+   Base
+--------------------------------------------------------------------------- */
+* {
+  box-sizing: border-box;
 }
 
 body {
   margin: 0;
-  padding: 1.5rem;
-  background: #0f1115;
-  color: #e6e6e6;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
 }
 
+a {
+  color: var(--accent);
+}
+
+code,
+pre {
+  font-family: var(--font-mono);
+}
+
+code {
+  font-size: 0.85em;
+  padding: 0.05rem 0.3rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-inset);
+}
+
+pre {
+  margin: 0.5rem 0 0;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-inset);
+  overflow: auto;
+  font-size: 0.85rem;
+}
+
+pre code {
+  padding: 0;
+  border: none;
+  background: none;
+}
+
+/* ---------------------------------------------------------------------------
+   Layout shell
+--------------------------------------------------------------------------- */
 .app {
-  max-width: 60rem;
-  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
 }
 
-.app__header h1 {
-  font-size: 1.4rem;
+.header,
+.footer {
+  background: var(--bg);
+}
+
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  border-bottom: 1px solid var(--border);
+  background: var(--header-bg);
+  backdrop-filter: blur(8px);
+}
+
+.header-content,
+.footer-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  width: 100%;
+  max-width: 60rem;
+  margin-inline: auto;
+  padding-inline: 1.5rem;
+}
+
+.header-content {
+  min-height: 3.5rem;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-weight: 600;
+}
+
+.logo img {
+  display: block;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: var(--radius-sm);
+}
+
+.logo__title {
+  font-size: 1.05rem;
+  letter-spacing: -0.01em;
+}
+
+.logo__node {
+  font-size: 0.8rem;
+  font-weight: 400;
+}
+
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-elevated);
+  color: var(--text);
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.theme-toggle:hover {
+  border-color: var(--border-strong);
+  background: var(--accent-soft);
+}
+
+.theme-toggle svg {
+  width: 1.15rem;
+  height: 1.15rem;
+  transition: transform 0.4s ease;
+}
+
+.theme-toggle:hover svg {
+  transform: rotate(20deg);
+}
+
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+  width: 100%;
+  max-width: 60rem;
+  margin-inline: auto;
+  padding-inline: 1.5rem;
+  margin-top: 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.tab {
+  padding: 0.5rem 0.9rem;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.tab:hover {
+  color: var(--text);
+}
+
+.tab--active {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}
+
+.content {
+  flex: 1 1 auto;
+  width: 100%;
+  max-width: 60rem;
+  margin-inline: auto;
+  padding: 1.5rem;
+}
+
+.footer {
+  border-top: 1px solid var(--border);
+  margin-top: auto;
+}
+
+.footer-content {
+  min-height: 3.5rem;
+}
+
+.footer-links {
+  display: flex;
+  gap: 1rem;
+}
+
+.footer-link {
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 0.85rem;
+}
+
+.footer-link:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.footer-text {
   margin: 0;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+/* ---------------------------------------------------------------------------
+   Cards
+--------------------------------------------------------------------------- */
+.node,
+.kv,
+.playground,
+.keys {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow);
 }
 
 .nodes {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
   gap: 1rem;
-  margin: 1.5rem 0;
+  margin-bottom: 1.5rem;
 }
 
 .node {
-  border: 1px solid #2a2f3a;
-  border-radius: 0.6rem;
   padding: 1rem;
-  background: #161a21;
 }
 
 .node--leader {
-  border-color: #4f8cff;
-  box-shadow: 0 0 0 1px #4f8cff inset;
+  border-color: var(--leader);
+  box-shadow:
+    0 0 0 1px var(--leader) inset,
+    var(--shadow);
 }
 
-.node header {
+.node__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -53,124 +320,58 @@ body {
 }
 
 .badge {
-  font-size: 0.75rem;
-  padding: 0.1rem 0.45rem;
+  font-size: 0.72rem;
+  padding: 0.1rem 0.5rem;
+  border: 1px solid var(--border);
   border-radius: 999px;
-  background: #2a2f3a;
+  background: var(--bg-inset);
+  color: var(--text-muted);
   text-transform: lowercase;
 }
 
 .badge--leader {
-  background: #4f8cff;
-  color: #06111f;
+  background: var(--leader);
+  border-color: transparent;
+  color: var(--leader-contrast);
 }
 
-dl {
+.badge--candidate {
+  background: var(--candidate);
+  border-color: transparent;
+  color: var(--candidate-contrast);
+}
+
+.facts {
   display: grid;
   grid-template-columns: auto 1fr;
   gap: 0.15rem 0.75rem;
   margin: 0.75rem 0 0;
 }
+
 dt {
   opacity: 0.6;
 }
+
 dd {
   margin: 0;
   text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
+/* ---------------------------------------------------------------------------
+   Key/value form and keys list
+--------------------------------------------------------------------------- */
 .kv {
-  border: 1px solid #2a2f3a;
-  border-radius: 0.6rem;
   padding: 1rem;
-  background: #161a21;
 }
 
-.kv form {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  align-items: end;
+.kv h2,
+.keys h2 {
+  font-size: 0.95rem;
+  margin: 0 0 0.75rem;
 }
 
-.kv label {
-  display: flex;
-  flex-direction: column;
-  font-size: 0.8rem;
-  gap: 0.25rem;
-}
-
-input {
-  padding: 0.4rem 0.5rem;
-  border-radius: 0.4rem;
-  border: 1px solid #2a2f3a;
-  background: #0f1115;
-  color: inherit;
-}
-
-.actions {
-  display: flex;
-  gap: 0.5rem;
-}
-
-button {
-  font: inherit;
-  padding: 0.4rem 0.8rem;
-  border-radius: 0.4rem;
-  border: 1px solid #4f8cff;
-  background: #4f8cff;
-  color: #06111f;
-  cursor: pointer;
-}
-
-button[type="button"] {
-  background: transparent;
-  color: #cfe0ff;
-}
-
-button:disabled {
-  opacity: 0.5;
-  cursor: progress;
-}
-
-.muted {
-  opacity: 0.6;
-}
-.error {
-  color: #ff6b6b;
-}
-.ok {
-  color: #4fd18b;
-}
-
-.tabs {
-  display: flex;
-  gap: 0.25rem;
-  margin: 1.25rem 0 1rem;
-  border-bottom: 1px solid #2a2f3a;
-}
-
-.tab {
-  background: transparent;
-  border: none;
-  border-bottom: 2px solid transparent;
-  border-radius: 0;
-  color: #9aa4b2;
-  padding: 0.4rem 0.9rem;
-}
-
-.tab--active {
-  color: #e6e6e6;
-  border-bottom-color: #4f8cff;
-}
-
-.playground {
-  border: 1px solid #2a2f3a;
-  border-radius: 0.6rem;
-  padding: 1rem;
-  background: #161a21;
-}
-
+.kv form,
 .playground form {
   display: flex;
   flex-wrap: wrap;
@@ -178,11 +379,144 @@ button:disabled {
   align-items: end;
 }
 
+.kv label,
 .playground label {
   display: flex;
   flex-direction: column;
   font-size: 0.8rem;
   gap: 0.25rem;
+}
+
+.actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.keys {
+  margin-top: 1.5rem;
+  padding: 1rem;
+}
+
+.key-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Scoped to .key-list so these win over the generic button[type="button"]
+   rule further down (which also zeroes background/border). */
+.key-list button.key-list__item {
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-inset);
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: inherit;
+}
+
+.key-list button.key-list__item:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  filter: none;
+}
+
+/* Outcome line under the key/value form; always mounted so screen readers
+   announce updates (see KVForm.tsx). */
+.kv__outcome {
+  margin: 0.75rem 0 0;
+  font-size: 0.85rem;
+  min-height: 1.2em;
+}
+
+/* A one-line orientation note shown under the node cards (e.g. single-node). */
+.hint {
+  margin: 0 0 1.5rem;
+  padding: 0.6rem 0.8rem;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-inset);
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+/* ---------------------------------------------------------------------------
+   Form controls
+--------------------------------------------------------------------------- */
+input,
+select,
+textarea {
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-inset);
+  color: inherit;
+}
+
+textarea {
+  resize: vertical;
+  font-family: var(--font-mono);
+}
+
+button {
+  font: inherit;
+  padding: 0.45rem 0.9rem;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--accent-contrast);
+  cursor: pointer;
+  transition:
+    filter 0.15s ease,
+    background-color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+button:hover {
+  filter: brightness(1.08);
+}
+
+button:active {
+  transform: translateY(1px);
+}
+
+button[type="button"] {
+  border-color: var(--border);
+  background: transparent;
+  color: var(--text);
+}
+
+button[type="button"]:hover {
+  border-color: var(--border-strong);
+  background: var(--accent-soft);
+  filter: none;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: progress;
+  transform: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ---------------------------------------------------------------------------
+   Playground
+--------------------------------------------------------------------------- */
+.playground {
+  padding: 1rem;
+}
+
+.playground__intro {
+  margin: 0 0 0.75rem;
+  font-size: 0.85rem;
+  max-width: 48rem;
 }
 
 .playground__path {
@@ -197,42 +531,99 @@ button:disabled {
   flex: 1 1 100%;
 }
 
+.playground__body textarea {
+  width: 100%;
+}
+
 .playground__doc {
   margin: 0.75rem 0 0;
   font-size: 0.8rem;
 }
 
-.playground__body textarea {
-  width: 100%;
-  resize: vertical;
-  padding: 0.4rem 0.5rem;
-  border-radius: 0.4rem;
-  border: 1px solid #2a2f3a;
-  background: #0f1115;
-  color: inherit;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-}
-
-select {
-  padding: 0.4rem 0.5rem;
-  border-radius: 0.4rem;
-  border: 1px solid #2a2f3a;
-  background: #0f1115;
-  color: inherit;
-}
-
 .response {
   margin-top: 1rem;
-  border-top: 1px solid #2a2f3a;
   padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
 }
 
 .response__body {
   margin: 0.5rem 0 0;
   padding: 0.75rem;
-  border-radius: 0.4rem;
-  background: #0f1115;
+  border-radius: var(--radius-sm);
+  background: var(--bg-inset);
   overflow: auto;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 0.85rem;
+}
+
+/* ---------------------------------------------------------------------------
+   Guide
+--------------------------------------------------------------------------- */
+.guide {
+  max-width: 46rem;
+  margin-inline: auto;
+}
+
+.guide h2 {
+  margin-top: 0;
+}
+
+.guide__lead {
+  font-size: 1rem;
+  color: var(--text-muted);
+}
+
+.guide ol,
+.guide ul {
+  padding-left: 1.25rem;
+}
+
+.guide li {
+  margin-bottom: 0.5rem;
+}
+
+.guide details {
+  margin: 0.75rem 0;
+}
+
+.guide summary {
+  cursor: pointer;
+  color: var(--text-muted);
+}
+
+.guide details pre {
+  margin-top: 0.5rem;
+}
+
+/* ---------------------------------------------------------------------------
+   Utilities
+--------------------------------------------------------------------------- */
+.muted {
+  color: var(--text-muted);
+}
+
+.error {
+  color: var(--error);
+}
+
+.ok {
+  color: var(--ok);
+}
+
+/* ---------------------------------------------------------------------------
+   Motion preferences
+--------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.001ms !important;
+    animation-duration: 0.001ms !important;
+  }
+}
+
+@media (max-width: 30rem) {
+  .logo__node {
+    display: none;
+  }
 }

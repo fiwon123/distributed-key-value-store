@@ -5,6 +5,7 @@
 //	PUT    /v1/kv/{key}   set a key (raw body, or JSON {"value":"..."})
 //	GET    /v1/kv/{key}   read a key (404 if absent)
 //	DELETE /v1/kv/{key}   delete a key (204, or 404 if absent)
+//	GET    /v1/kv         list all keys
 //	GET    /v1/status     node/cluster status
 //
 // The API talks to a Backend, so the storage layer can change without touching
@@ -37,6 +38,7 @@ type Backend interface {
 	Get(key string) (string, bool, error)
 	Put(key, value string) error
 	Delete(key string) (bool, error)
+	List() ([]string, error)
 }
 
 // ErrUnavailable signals that a write cannot be accepted right now, for example
@@ -64,6 +66,11 @@ type StatusProvider interface {
 type keyValue struct {
 	Key   string `json:"key"`
 	Value string `json:"value"`
+}
+
+// keyList is the JSON shape returned by GET /v1/kv.
+type keyList struct {
+	Keys []string `json:"keys"`
 }
 
 // errorBody is the JSON shape returned on errors.
@@ -95,6 +102,7 @@ func (s *Server) routes() []routeSpec {
 		{http.MethodPut, "/v1/kv/{key}", s.handlePut},
 		{http.MethodGet, "/v1/kv/{key}", s.handleGet},
 		{http.MethodDelete, "/v1/kv/{key}", s.handleDelete},
+		{http.MethodGet, "/v1/kv", s.handleList},
 		{http.MethodGet, "/v1/status", s.handleStatus},
 		{http.MethodGet, "/v1/openapi.json", s.handleOpenAPI},
 	}
@@ -155,6 +163,18 @@ func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) handleList(w http.ResponseWriter, _ *http.Request) {
+	keys, err := s.backend.List()
+	if err != nil {
+		s.writeBackendError(w, err)
+		return
+	}
+	if keys == nil {
+		keys = []string{}
+	}
+	writeJSON(w, http.StatusOK, keyList{Keys: keys})
 }
 
 func (s *Server) handleStatus(w http.ResponseWriter, _ *http.Request) {

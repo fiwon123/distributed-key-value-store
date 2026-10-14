@@ -3,7 +3,30 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>cluster · distributed-key-value-store</title>
+    <meta
+      name="description"
+      content="Dashboard for a minimal educational Distributed Key-Value Store built on a hand-rolled Raft consensus algorithm."
+    />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>cluster · Distributed Key-Value Store</title>
+    <script>
+      // Apply the stored theme before first paint to avoid a flash of the
+      // wrong colors. useTheme() reads and writes the same "theme" key.
+      (function () {
+        try {
+          var stored = localStorage.getItem("theme");
+          var theme =
+            stored === "light" || stored === "dark"
+              ? stored
+              : window.matchMedia("(prefers-color-scheme: dark)").matches
+                ? "dark"
+                : "light";
+          document.documentElement.setAttribute("data-theme", theme);
+        } catch (e) {
+          document.documentElement.setAttribute("data-theme", "dark");
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

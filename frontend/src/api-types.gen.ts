@@ -4,6 +4,26 @@
  */
 
 export interface paths {
+  "/v1/kv": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List all keys.
+     * @description Returns the keys held by the replicated state machine, sorted. Leader-only: a non-leader answers 503 with the leader in X-Raft-Leader.
+     */
+    get: operations["listKeys"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/kv/{key}": {
     parameters: {
       query?: never;
@@ -71,6 +91,10 @@ export interface components {
       key: string;
       value: string;
     };
+    KeyList: {
+      /** @description The stored keys, sorted lexicographically. */
+      keys: string[];
+    };
     Status: {
       /** @description This node's id. */
       id: string;
@@ -111,6 +135,45 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+  listKeys: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The stored keys, sorted. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["KeyList"];
+        };
+      };
+      /** @description Internal error. */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
+      /** @description This node is not the leader or a quorum is unreachable. */
+      503: {
+        headers: {
+          "X-Raft-Leader": components["headers"]["X-Raft-Leader"];
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Error"];
+        };
+      };
+    };
+  };
   getKey: {
     parameters: {
       query?: never;
