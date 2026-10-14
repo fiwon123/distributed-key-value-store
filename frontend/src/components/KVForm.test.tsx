@@ -104,6 +104,8 @@ describe("KVForm", () => {
     await user.click(screen.getByRole("button", { name: "DELETE" }));
 
     expect(await screen.findByText("key not found")).toBeInTheDocument();
+    // A failed delete must not clear the form.
+    expect(screen.getByLabelText("key")).toHaveValue("missing");
   });
 
   it("shows the error message when a put fails", async () => {

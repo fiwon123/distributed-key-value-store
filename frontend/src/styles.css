@@ -406,11 +406,9 @@ dd {
   list-style: none;
 }
 
-.key-list li {
-  margin: 0;
-}
-
-.key-list__item {
+/* Scoped to .key-list so these win over the generic button[type="button"]
+   rule further down (which also zeroes background/border). */
+.key-list button.key-list__item {
   padding: 0.2rem 0.5rem;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -420,8 +418,18 @@ dd {
   color: inherit;
 }
 
-.key-list__item:hover {
+.key-list button.key-list__item:hover {
   border-color: var(--accent);
+  background: var(--accent-soft);
+  filter: none;
+}
+
+/* Outcome line under the key/value form; always mounted so screen readers
+   announce updates (see KVForm.tsx). */
+.kv__outcome {
+  margin: 0.75rem 0 0;
+  font-size: 0.85rem;
+  min-height: 1.2em;
 }
 
 /* A one-line orientation note shown under the node cards (e.g. single-node). */

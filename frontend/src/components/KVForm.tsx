@@ -44,11 +44,13 @@ export function KVForm({ state }: { state: KVConsole }) {
           </button>
         </div>
       </form>
-      {outcome && (
-        <p className={outcome.tone === "ok" ? "ok" : "error"} aria-live="polite" role="status">
-          {outcome.text}
-        </p>
-      )}
+      <p
+        className={`kv__outcome ${outcome?.tone === "ok" ? "ok" : outcome?.tone === "err" ? "error" : "muted"}`}
+        role="status"
+        aria-live="polite"
+      >
+        {outcome?.text ?? ""}
+      </p>
     </section>
   );
 }

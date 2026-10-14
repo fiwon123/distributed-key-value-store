@@ -195,13 +195,14 @@ export default function App() {
 
             {cluster && cluster.peers.length === 0 && (
               <p className="hint">
-                Single-node mode — start a 3-node cluster with <code>make cluster-smoke</code> or{" "}
-                <code>docker compose up</code> to watch followers and leader failover.
+                Single-node mode — start a 3-node cluster with <code>make cluster-smoke</code>{" "}
+                (local processes) or <code>make cluster-up</code> (Docker) to watch followers and
+                leader failover.
               </p>
             )}
 
             <KVForm state={kv} />
-            <Keys onSelect={kv.select} />
+            <Keys onSelect={kv.select} busy={kv.busy} />
           </>
         ) : tab === "api" ? (
           <Playground />

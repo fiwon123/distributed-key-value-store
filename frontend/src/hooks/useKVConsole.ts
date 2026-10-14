@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { deleteKey, getKey, putKey } from "../api";
 
 export type Outcome = { tone: "ok" | "err"; text: string } | undefined;
@@ -25,7 +25,14 @@ export function useKVConsole(): KVConsole {
   const [busy, setBusy] = useState(false);
   const [outcome, setOutcome] = useState<Outcome>();
 
+  // busyRef guards against overlapping operations without making every
+  // operation depend on `busy` (which would recreate the callbacks each render).
+  const busyRef = useRef(false);
   const run = useCallback(async (op: () => Promise<string>) => {
+    if (busyRef.current) {
+      return;
+    }
+    busyRef.current = true;
     setBusy(true);
     setOutcome(undefined);
     try {
@@ -33,6 +40,7 @@ export function useKVConsole(): KVConsole {
     } catch (err) {
       setOutcome({ tone: "err", text: err instanceof Error ? err.message : String(err) });
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   }, []);
