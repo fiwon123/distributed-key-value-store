@@ -11,6 +11,7 @@ WEB_DIR ?= frontend
 .PHONY: help check fmt vet test test-integration build run clean \
         web-install web-build web-dev web-lint web-test web-codegen web-check \
         cluster-smoke cluster-up cluster-down cluster-logs \
+        cluster-local-up cluster-local-down cluster-local-status \
         preflight dev-up dev-down dev-restart dev-log dev-build reset \
         shell opencode opencode-auto dev-shell dev-opencode dev-opencode-auto
 
@@ -101,6 +102,15 @@ web-check:
 ## cluster-smoke: run the 3-node Done-when check with local processes
 cluster-smoke:
 	scripts/cluster-smoke.sh
+
+cluster-local-up: ## Start a persistent local cluster, 3 nodes (no docker); NODE_COUNT=5 for a different size
+	scripts/cluster-local.sh up
+
+cluster-local-down: ## Stop the local cluster
+	scripts/cluster-local.sh down
+
+cluster-local-status: ## Show the local cluster's node roles
+	scripts/cluster-local.sh status
 
 cluster-up: ## Build and start the 3-node cluster (needs docker)
 	docker compose -f deploy/docker-compose.yml up -d --build

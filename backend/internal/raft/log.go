@@ -66,6 +66,11 @@ func (n *Node) applyLocked() {
 			break
 		}
 		n.lastApplied = index
+		// A leader's election no-op entry carries no command; advance past it
+		// without invoking the state machine.
+		if len(entry.Data) == 0 {
+			continue
+		}
 		if n.applyFn == nil {
 			continue
 		}

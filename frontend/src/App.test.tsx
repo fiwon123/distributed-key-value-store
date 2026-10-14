@@ -88,6 +88,26 @@ describe("App", () => {
 
     expect(await screen.findByRole("heading", { name: "Guide" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Using the dashboard" })).toBeInTheDocument();
+
+    // The Guide distinguishes all three ways to run a cluster.
+    const cli = screen.getByText(/make cluster-local-up/);
+    expect(cli).toHaveTextContent("make cluster-smoke");
+    expect(cli).toHaveTextContent("make cluster-up");
+  });
+
+  it("shows the Learn tab with the theoretical foundations", async () => {
+    stubClusterFetch();
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: "Learn" }));
+
+    expect(
+      await screen.findByRole("heading", { name: "Theoretical Foundations" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "CAP Theorem" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Guide" })).not.toBeInTheDocument();
   });
 
   it("loads a clicked stored key into the console", async () => {
@@ -102,7 +122,7 @@ describe("App", () => {
     expect(screen.getByLabelText("value")).toHaveValue("hello");
   });
 
-  it("hints how to run a multi-node cluster in single-node mode", async () => {
+  it("explains how to run more nodes in a callout that starts collapsed", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo | URL) => {
@@ -113,10 +133,30 @@ describe("App", () => {
         return json({ error: "not found" }, 404);
       }),
     );
+    const user = userEvent.setup();
 
     render(<App />);
 
-    expect(await screen.findByText(/Single-node mode/)).toBeInTheDocument();
+    const heading = await screen.findByRole("heading", { name: "How to run more nodes?" });
+    const details = heading.closest("details");
+    expect(details?.open).toBe(false);
+
+    await user.click(heading);
+
+    expect(details?.open).toBe(true);
+    expect(screen.getByText("make cluster-local-up")).toBeInTheDocument();
+    expect(screen.getByText(/NODE_COUNT=5/)).toBeInTheDocument();
+  });
+
+  it("shows the purpose line but hides the single-node callout when peers exist", async () => {
+    stubClusterFetch();
+
+    render(<App />);
+
+    expect(await screen.findByText(/replicated key-value store/i)).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "How to run more nodes?" }),
+    ).not.toBeInTheDocument();
   });
 
   it("toggles the theme and reflects it on the document", async () => {
@@ -125,13 +165,13 @@ describe("App", () => {
 
     render(<App />);
 
-    // No stored theme and no OS signal in jsdom → light.
-    expect(document.documentElement.getAttribute("data-theme")).toBe("light");
-
-    await user.click(screen.getByRole("button", { name: /switch to dark mode/i }));
-
+    // Dark is the default when nothing is stored.
     expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
-    expect(localStorage.getItem("theme")).toBe("dark");
-    expect(screen.getByRole("button", { name: /switch to light mode/i })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /switch to light mode/i }));
+
+    expect(document.documentElement.getAttribute("data-theme")).toBe("light");
+    expect(localStorage.getItem("theme")).toBe("light");
+    expect(screen.getByRole("button", { name: /switch to dark mode/i })).toBeInTheDocument();
   });
 });

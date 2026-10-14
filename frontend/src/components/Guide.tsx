@@ -41,20 +41,30 @@ export function Guide() {
 
       <h3>Running a cluster</h3>
       <p className="muted">
-        A single node cannot demonstrate failover. Start more than one and the Cluster tab shows
-        every node automatically.
+        This node runs alone until you give it peers, so the Cluster tab starts with a single card.
+        Start three and it shows all of them — one leader and two followers — so you can watch
+        failover.
       </p>
       <details>
         <summary>CLI (optional)</summary>
         <pre>
-          <code>{`# start a local 3-node cluster
+          <code>{`# persistent, browsable 3-node cluster on 127.0.0.1:9081-9083
+make cluster-local-up      # start, then open the URL it prints
+make cluster-local-status  # show each node's role
+make cluster-local-down    # stop
+
+# one-shot check: write, kill the leader, read from the new leader
 make cluster-smoke
 
-# or drive the API directly
-curl -X PUT http://localhost:8080/v1/kv/greeting \\
+# containerized cluster (requires Docker)
+make cluster-up
+make cluster-down
+
+# drive the API directly against any node
+curl -X PUT http://localhost:9081/v1/kv/greeting \\
   -H 'Content-Type: application/json' -d '{"value":"hello"}'
-curl http://localhost:8080/v1/kv/greeting
-curl -X DELETE http://localhost:8080/v1/kv/greeting`}</code>
+curl http://localhost:9081/v1/kv/greeting
+curl -X DELETE http://localhost:9081/v1/kv/greeting`}</code>
         </pre>
       </details>
 

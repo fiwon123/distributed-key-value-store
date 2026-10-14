@@ -5,12 +5,13 @@ import { Keys } from "./components/Keys";
 import { NodeCard } from "./components/NodeCard";
 import { Playground } from "./components/Playground";
 import { Guide } from "./components/Guide";
+import { Learn } from "./components/Learn";
 import { useKVConsole } from "./hooks/useKVConsole";
 import { useTheme } from "./hooks/useTheme";
 import type { ClusterInfo, Status } from "./types";
 import "./styles.css";
 
-type Tab = "cluster" | "api" | "guide";
+type Tab = "cluster" | "api" | "guide" | "learn";
 
 function statusPath(self: string, id: string): string {
   return id === self ? "/v1/status" : `/node/${encodeURIComponent(id)}/v1/status`;
@@ -180,6 +181,14 @@ export default function App() {
         >
           Guide
         </button>
+        <button
+          type="button"
+          className={tab === "learn" ? "tab tab--active" : "tab"}
+          aria-pressed={tab === "learn"}
+          onClick={() => setTab("learn")}
+        >
+          Learn
+        </button>
       </nav>
 
       <main className="content">
@@ -187,27 +196,50 @@ export default function App() {
 
         {tab === "cluster" ? (
           <>
+            <p className="cluster__lead">
+              A replicated key-value store: writes go through the <strong>leader</strong>, commit to
+              a majority, and apply on every node — so committed data survives a node failure.{" "}
+              <button type="button" className="link" onClick={() => setTab("guide")}>
+                How it works
+              </button>
+            </p>
+
+            {cluster && cluster.peers.length === 0 && (
+              <details className="callout">
+                <summary>
+                  <h3>How to run more nodes?</h3>
+                </summary>
+                <div className="callout__body" role="note">
+                  <p>
+                    This node was started without <code>-peers</code>, so it is a cluster of one and
+                    elected itself leader. Start more nodes and this tab shows them all:
+                  </p>
+                  <pre>
+                    <code>make cluster-local-up</code>
+                  </pre>
+                  <p className="muted">
+                    For a different size, add <code>NODE_COUNT=5</code>. Then open{" "}
+                    <code>http://127.0.0.1:9081</code> — one leader and the rest followers.
+                  </p>
+                </div>
+              </details>
+            )}
+
             <div className="nodes">
               {ids.map((id) => (
                 <NodeCard key={id} id={id} status={statuses[id]} error={statusErrors[id]} />
               ))}
             </div>
 
-            {cluster && cluster.peers.length === 0 && (
-              <p className="hint">
-                Single-node mode — start a 3-node cluster with <code>make cluster-smoke</code>{" "}
-                (local processes) or <code>make cluster-up</code> (Docker) to watch followers and
-                leader failover.
-              </p>
-            )}
-
             <KVForm state={kv} />
             <Keys onSelect={kv.select} busy={kv.busy} />
           </>
         ) : tab === "api" ? (
           <Playground />
-        ) : (
+        ) : tab === "guide" ? (
           <Guide />
+        ) : (
+          <Learn />
         )}
       </main>
 

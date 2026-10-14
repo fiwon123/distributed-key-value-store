@@ -269,6 +269,62 @@ func TestWritesStopWithoutQuorum(t *testing.T) {
 	}
 }
 
+// TestTwoNodeClusterNeedsBothNodes pins the even-cluster quorum end to end: a
+// 2-node cluster needs both nodes, so with one down a write cannot commit. The
+// old len(peers)/2+1 arithmetic treated the leader's own vote as a majority.
+func TestTwoNodeClusterNeedsBothNodes(t *testing.T) {
+	c := startE2ECluster(t, "n1", "n2")
+	leader := c.leader(t) // both up: exactly one leader is elected
+
+	var follower string
+	for id := range c.nodes {
+		if id != leader.id {
+			follower = id
+		}
+	}
+	c.kill(follower)
+
+	data, err := kv.Command{Op: kv.OpPut, Key: "k", Value: "v"}.Encode()
+	if err != nil {
+		t.Fatalf("encode: %v", err)
+	}
+	if err := leader.propose(data, 400*time.Millisecond); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("Propose with one of two nodes down = %v, want ErrUnavailable", err)
+	}
+}
+
+// TestFourNodeClusterCommitsWithMajority exercises a 4-node cluster to make the
+// even-size quorum concrete: three of four is a majority, two of four is not.
+func TestFourNodeClusterCommitsWithMajority(t *testing.T) {
+	c := startE2ECluster(t, "n1", "n2", "n3", "n4")
+	leader := c.leader(t)
+
+	propose(t, leader, kv.Command{Op: kv.OpPut, Key: "k", Value: "v1"})
+	c.waitForValue(t, "k", "v1")
+
+	var followers []string
+	for id := range c.nodes {
+		if id != leader.id {
+			followers = append(followers, id)
+		}
+	}
+
+	// One failure leaves 3 of 4 nodes — still a majority, so writes continue.
+	c.kill(followers[0])
+	propose(t, leader, kv.Command{Op: kv.OpPut, Key: "k", Value: "v2"})
+	c.waitForValue(t, "k", "v2")
+
+	// A second failure leaves 2 of 4 — no majority, so writes stop.
+	c.kill(followers[1])
+	data, err := kv.Command{Op: kv.OpPut, Key: "k", Value: "v3"}.Encode()
+	if err != nil {
+		t.Fatalf("encode: %v", err)
+	}
+	if err := leader.propose(data, 400*time.Millisecond); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("Propose with 2 of 4 nodes down = %v, want ErrUnavailable", err)
+	}
+}
+
 // TestSnapshotsCompactAndSurviveRestart writes enough through a durable
 // three-node cluster to trigger snapshots on every node, then reopens a node
 // from its data dir and checks the committed state is readable from the
@@ -285,8 +341,11 @@ func TestSnapshotsSurviveRestart(t *testing.T) {
 	tr, members := startPersistentCluster(t, dirs, threshold, ids...)
 	leader := persistentLeader(t, members)
 
+	// Write 2×threshold keys so the snapshot boundary lands on 2×threshold and
+	// the final write stays in the tail beyond it (applied indices include the
+	// leader's election no-op at index 1).
 	last := ""
-	for i := 0; i < int(threshold)+2; i++ {
+	for i := 0; i < 2*int(threshold); i++ {
 		last = fmt.Sprintf("k%d", i)
 		if err := leader.Propose(mustEncode(t, kv.Command{Op: kv.OpPut, Key: last, Value: "v"})); err != nil {
 			t.Fatalf("Propose %s: %v", last, err)
@@ -299,7 +358,7 @@ func TestSnapshotsSurviveRestart(t *testing.T) {
 			m.mu.Lock()
 			start, applied := m.logStart, m.lastApplied
 			m.mu.Unlock()
-			if start == 0 || applied < uint64(threshold)+2 {
+			if start == 0 || applied < uint64(2*threshold) {
 				return false
 			}
 		}
@@ -331,9 +390,9 @@ func TestSnapshotsSurviveRestart(t *testing.T) {
 	old.Stop()
 	tr.remove(victim)
 
-	// The snapshot was taken at the threshold boundary (3), so on restart the
-	// state machine reflects everything up to it; the entries beyond are in the
-	// log but not yet re-committed.
+	// The snapshot was taken at the 2×threshold boundary, so on restart the
+	// state machine reflects everything up to it; the final write is still in
+	// the log but not yet re-committed.
 	node, store := openPersistentNode(t, victim, dirs[victim], peersFor(ids, victim), threshold)
 	if got, ok := store.Get("k0"); !ok || got != "v" {
 		t.Fatalf("restarted %s: Get(k0) = %q, %v; want v restored from snapshot", victim, got, ok)
@@ -470,6 +529,55 @@ func TestLaggingFollowerCatchesUpViaSnapshot(t *testing.T) {
 	waitFor(t, 3*time.Second, func() bool {
 		got, ok := store.Get(next)
 		return ok && got == "v2"
+	})
+}
+
+// TestFullRestartReadsCommittedValues writes a value, stops every node, starts
+// them again from the same data dirs, and reads the value back from the new
+// leader without issuing a new write. This is the acceptance criterion for #77:
+// a freshly elected leader appends a current-term no-op, and committing it
+// advances commitIndex past the prior-term entries recovered from disk.
+func TestFullRestartReadsCommittedValues(t *testing.T) {
+	ids := []string{"n1", "n2", "n3"}
+	root := t.TempDir()
+	dirs := make(map[string]string, len(ids))
+	for _, id := range ids {
+		dirs[id] = filepath.Join(root, id)
+	}
+
+	// First run: elect, write, and let every node apply the value.
+	tr, members := startPersistentCluster(t, dirs, 0, ids...)
+	leader := persistentLeader(t, members)
+	if err := leader.Propose(mustEncode(t, kv.Command{Op: kv.OpPut, Key: "demo", Value: "survives"})); err != nil {
+		t.Fatalf("Propose: %v", err)
+	}
+	waitFor(t, 3*time.Second, func() bool {
+		for _, m := range members {
+			if got, ok := m.store.Get("demo"); !ok || got != "survives" {
+				return false
+			}
+		}
+		return true
+	})
+
+	// Stop every node and drop it from the members map so the shared cleanup
+	// does not stop it twice.
+	for id, m := range members {
+		tr.remove(id)
+		m.Stop()
+		delete(members, id)
+	}
+
+	// Second run: fresh nodes on the same dirs, a fresh transport. No new write.
+	_, restarted := startPersistentCluster(t, dirs, 0, ids...)
+	persistentLeader(t, restarted)
+	waitFor(t, 3*time.Second, func() bool {
+		for _, m := range restarted {
+			if got, ok := m.store.Get("demo"); !ok || got != "survives" {
+				return false
+			}
+		}
+		return true
 	})
 }
 
