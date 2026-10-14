@@ -455,7 +455,7 @@ dd {
   text-decoration: none;
 }
 
-/* Explains single-node mode on the Cluster tab. */
+/* Explains single-node mode on the Cluster tab — a collapsed <details>. */
 .callout {
   margin: 0 0 1.5rem;
   padding: 0.9rem 1.1rem;
@@ -465,9 +465,46 @@ dd {
   background: var(--bg-inset);
 }
 
+.callout > summary {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  list-style: none; /* replace the default marker with our own */
+}
+
+.callout > summary::-webkit-details-marker {
+  display: none;
+}
+
+.callout > summary::before {
+  content: "▸";
+  color: var(--accent);
+  font-size: 0.7rem;
+  transition: transform 0.15s ease;
+}
+
+.callout[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.callout > summary:hover {
+  color: var(--accent);
+}
+
+.callout > summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
 .callout h3 {
-  margin: 0 0 0.5rem;
+  margin: 0;
   font-size: 0.95rem;
+}
+
+.callout__body {
+  margin-top: 0.6rem;
 }
 
 .callout p {
@@ -479,7 +516,7 @@ dd {
   margin: 0 0 0.5rem;
 }
 
-.callout > :last-child {
+.callout__body > :last-child {
   margin-bottom: 0;
 }
 

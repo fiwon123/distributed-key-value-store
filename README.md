@@ -131,8 +131,8 @@ non-leader answer is visible as-is; it links to the Swagger UI at `/docs` for
 the full contract.
 
 The **Cluster** tab also states what the store is and, when a node runs without
-peers, explains why only one card appears and prints the command that starts
-three. Multi-node runs show a card per node.
+peers, shows a collapsed **How to run more nodes?** callout that expands to the
+command that starts a cluster. Multi-node runs show a card per node.
 
 The playground is driven by the node's own contract: it reads
 `GET /v1/openapi.json` and derives its endpoint presets, the methods allowed per
