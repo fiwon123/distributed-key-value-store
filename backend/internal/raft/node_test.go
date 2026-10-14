@@ -3,6 +3,7 @@ package raft
 import (
 	"context"
 	"errors"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -184,6 +185,75 @@ func TestRunElectionWinsWithMajority(t *testing.T) {
 	if snap.Term != 1 {
 		t.Fatalf("term = %d, want 1", snap.Term)
 	}
+}
+
+func TestElectionAppendsNoopEntry(t *testing.T) {
+	peers := []Peer{{ID: "node2"}, {ID: "node3"}}
+	stub := &stubTransport{
+		vote: func(_ Peer, args RequestVoteArgs) (RequestVoteReply, error) {
+			return RequestVoteReply{Term: args.Term, VoteGranted: true}, nil
+		},
+		appnd: func(_ Peer, _ AppendEntriesArgs) (AppendEntriesReply, error) {
+			return AppendEntriesReply{Term: 1, Success: true}, nil
+		},
+	}
+	n := NewNode(testConfig("node1", peers), stub)
+
+	n.runElection()
+
+	if snap := n.Status(); snap.Role != "leader" {
+		t.Fatalf("role = %s, want leader", snap.Role)
+	}
+	n.mu.Lock()
+	last := n.log[len(n.log)-1]
+	n.mu.Unlock()
+	if last.Term != n.Status().Term {
+		t.Fatalf("last entry term = %d, want current term %d", last.Term, n.Status().Term)
+	}
+	if len(last.Data) != 0 {
+		t.Fatalf("last entry data = %q, want an empty no-op", last.Data)
+	}
+}
+
+func TestRestartAppliesCommittedEntriesWithoutNewWrite(t *testing.T) {
+	dir := t.TempDir()
+	state := &memState{}
+	cfg := testConfig("n1", nil)
+	cfg.Storage = NewFileStorage(dir)
+	cfg.SnapshotThreshold = 0 // keep the whole log; snapshots are covered elsewhere
+	cfg.ApplyFunc = state.apply
+
+	n, err := Open(cfg, &stubTransport{})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	n.Start()
+	waitFor(t, 2*time.Second, func() bool { return n.Status().Role == "leader" })
+	for _, v := range []string{"a", "b"} {
+		if err := n.Propose([]byte(v)); err != nil {
+			t.Fatalf("Propose %q: %v", v, err)
+		}
+	}
+	n.Stop()
+
+	// A fresh process on the same data dir recovers commitIndex 0 and a purely
+	// prior-term log. Electing itself appends a current-term no-op, which must
+	// commit and apply the recovered entries without any new client write.
+	fresh := &memState{}
+	restartCfg := testConfig("n1", nil)
+	restartCfg.Storage = NewFileStorage(dir)
+	restartCfg.SnapshotThreshold = 0
+	restartCfg.ApplyFunc = fresh.apply
+	n2, err := Open(restartCfg, &stubTransport{})
+	if err != nil {
+		t.Fatalf("Open (restart): %v", err)
+	}
+	n2.Start()
+	defer n2.Stop()
+
+	waitFor(t, 2*time.Second, func() bool {
+		return reflect.DeepEqual(fresh.contents(), []string{"a", "b"})
+	})
 }
 
 func TestRunElectionLosesWithoutMajority(t *testing.T) {

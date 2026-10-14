@@ -453,7 +453,9 @@ func (n *Node) runElection() {
 			grants++
 			if grants >= n.majority() {
 				n.becomeLeaderLocked()
+				n.appendLeaderNoopLocked()
 				n.mu.Unlock()
+				n.replicateAll()
 				return
 			}
 		}
@@ -462,10 +464,15 @@ func (n *Node) runElection() {
 
 	// Lost this round (no majority) — stay candidate; the next timeout retries.
 	n.mu.Lock()
-	if n.role == Candidate && grants >= n.majority() {
+	won := n.role == Candidate && grants >= n.majority()
+	if won {
 		n.becomeLeaderLocked()
+		n.appendLeaderNoopLocked()
 	}
 	n.mu.Unlock()
+	if won {
+		n.replicateAll()
+	}
 }
 
 func (n *Node) becomeLeaderLocked() {
@@ -480,6 +487,27 @@ func (n *Node) becomeLeaderLocked() {
 		n.matchIndex[i] = 0
 	}
 	log.Printf("raft %s: became leader for term %d", n.id, n.term)
+}
+
+// appendLeaderNoopLocked appends an empty entry for the current term and points
+// replication at it. A leader commits an entry only once one from its own term
+// is stored on a majority (§5.4.2), so without a current-term entry, entries
+// committed by a previous term stay uncommitted — and unapplied — forever after
+// a restart. Committing the no-op advances commitIndex past those entries.
+//
+// The election routine calls this right after becomeLeaderLocked, the only path
+// to leadership in production. Caller must hold n.mu and be Leader.
+func (n *Node) appendLeaderNoopLocked() {
+	index := n.lastLogIndex() + 1
+	noop := LogEntry{Index: index, Term: n.term}
+	n.log = append(n.log, noop)
+	n.persistEntriesLocked([]LogEntry{noop})
+	// Point every peer at the no-op so it is replicated immediately; on a
+	// mismatch nextIndex backs off as usual.
+	for i := range n.nextIndex {
+		n.nextIndex[i] = index
+		n.matchIndex[i] = 0
+	}
 }
 
 // becomeFollowerLocked resets the node to follower with the given term. It also

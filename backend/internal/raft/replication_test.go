@@ -60,7 +60,9 @@ func newTestCluster(t *testing.T, ids ...string) (*clusterTransport, map[string]
 }
 
 // forceLeader makes n a leader of term 1 and initialises its replication
-// state, without running elections. Caller must not have started n.
+// state, without running elections. It also skips the election-time no-op entry
+// (appendLeaderNoopLocked), keeping index-based fixtures stable; real elections
+// go through runElection, which appends it. Caller must not have started n.
 func forceLeader(n *Node) {
 	n.mu.Lock()
 	defer n.mu.Unlock()

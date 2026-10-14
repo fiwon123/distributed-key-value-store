@@ -285,8 +285,11 @@ func TestSnapshotsSurviveRestart(t *testing.T) {
 	tr, members := startPersistentCluster(t, dirs, threshold, ids...)
 	leader := persistentLeader(t, members)
 
+	// Write 2×threshold keys so the snapshot boundary lands on 2×threshold and
+	// the final write stays in the tail beyond it (applied indices include the
+	// leader's election no-op at index 1).
 	last := ""
-	for i := 0; i < int(threshold)+2; i++ {
+	for i := 0; i < 2*int(threshold); i++ {
 		last = fmt.Sprintf("k%d", i)
 		if err := leader.Propose(mustEncode(t, kv.Command{Op: kv.OpPut, Key: last, Value: "v"})); err != nil {
 			t.Fatalf("Propose %s: %v", last, err)
@@ -299,7 +302,7 @@ func TestSnapshotsSurviveRestart(t *testing.T) {
 			m.mu.Lock()
 			start, applied := m.logStart, m.lastApplied
 			m.mu.Unlock()
-			if start == 0 || applied < uint64(threshold)+2 {
+			if start == 0 || applied < uint64(2*threshold) {
 				return false
 			}
 		}
@@ -331,9 +334,9 @@ func TestSnapshotsSurviveRestart(t *testing.T) {
 	old.Stop()
 	tr.remove(victim)
 
-	// The snapshot was taken at the threshold boundary (3), so on restart the
-	// state machine reflects everything up to it; the entries beyond are in the
-	// log but not yet re-committed.
+	// The snapshot was taken at the 2×threshold boundary, so on restart the
+	// state machine reflects everything up to it; the final write is still in
+	// the log but not yet re-committed.
 	node, store := openPersistentNode(t, victim, dirs[victim], peersFor(ids, victim), threshold)
 	if got, ok := store.Get("k0"); !ok || got != "v" {
 		t.Fatalf("restarted %s: Get(k0) = %q, %v; want v restored from snapshot", victim, got, ok)
@@ -470,6 +473,55 @@ func TestLaggingFollowerCatchesUpViaSnapshot(t *testing.T) {
 	waitFor(t, 3*time.Second, func() bool {
 		got, ok := store.Get(next)
 		return ok && got == "v2"
+	})
+}
+
+// TestFullRestartReadsCommittedValues writes a value, stops every node, starts
+// them again from the same data dirs, and reads the value back from the new
+// leader without issuing a new write. This is the acceptance criterion for #77:
+// a freshly elected leader appends a current-term no-op, and committing it
+// advances commitIndex past the prior-term entries recovered from disk.
+func TestFullRestartReadsCommittedValues(t *testing.T) {
+	ids := []string{"n1", "n2", "n3"}
+	root := t.TempDir()
+	dirs := make(map[string]string, len(ids))
+	for _, id := range ids {
+		dirs[id] = filepath.Join(root, id)
+	}
+
+	// First run: elect, write, and let every node apply the value.
+	tr, members := startPersistentCluster(t, dirs, 0, ids...)
+	leader := persistentLeader(t, members)
+	if err := leader.Propose(mustEncode(t, kv.Command{Op: kv.OpPut, Key: "demo", Value: "survives"})); err != nil {
+		t.Fatalf("Propose: %v", err)
+	}
+	waitFor(t, 3*time.Second, func() bool {
+		for _, m := range members {
+			if got, ok := m.store.Get("demo"); !ok || got != "survives" {
+				return false
+			}
+		}
+		return true
+	})
+
+	// Stop every node and drop it from the members map so the shared cleanup
+	// does not stop it twice.
+	for id, m := range members {
+		tr.remove(id)
+		m.Stop()
+		delete(members, id)
+	}
+
+	// Second run: fresh nodes on the same dirs, a fresh transport. No new write.
+	_, restarted := startPersistentCluster(t, dirs, 0, ids...)
+	persistentLeader(t, restarted)
+	waitFor(t, 3*time.Second, func() bool {
+		for _, m := range restarted {
+			if got, ok := m.store.Get("demo"); !ok || got != "survives" {
+				return false
+			}
+		}
+		return true
 	})
 }
 
