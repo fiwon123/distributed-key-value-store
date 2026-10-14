@@ -40,6 +40,9 @@ go.work.sum
 /.xdg-state/
 air.log
 
+# Local 3-node cluster state (scripts/cluster-local.sh): pids, logs, data, binary
+/.cluster/
+
 # Agent session memory (local-only, never committed)
 .opencode/memory/
 __pycache__/

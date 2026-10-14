@@ -166,15 +166,24 @@ curl -i http://localhost:8080/v1/status
 
 Two ways, same topology: three nodes, one keyspace, majority commit.
 
-**Local processes (no docker)** — the Done-when check, fully scripted:
+**Local processes — a persistent, browsable cluster (no docker):**
 
 ```bash
-scripts/cluster-smoke.sh   # or: make cluster-smoke
+make cluster-local-up       # start 3 nodes; prints the dashboard URLs
+# open http://127.0.0.1:9081 (also :9082, :9083) — three cards, one leader
+make cluster-local-status   # show each node's role
+make cluster-local-down     # stop
 ```
 
-It starts three nodes on `:9081`-`:9083` with persistent data dirs, waits for a
-leader, writes a key, kills the leader, waits for a new leader, and reads the
-key back — proving committed state survives a leader failure.
+Three nodes start on `127.0.0.1:9081`-`:9083`, each with the others as peers, so
+every node's dashboard shows all three cards — one leader, two followers. State
+lives under `.cluster/` (gitignored) and each `up` starts fresh; move the port
+base with `BASE_PORT=9081`.
+
+**Local processes — the Done-when check** (`scripts/cluster-smoke.sh`, or
+`make cluster-smoke`): starts three nodes, writes a key, kills the leader, waits
+for a new leader, and reads the key back — proving committed state survives a
+leader failure. Unlike the above, it tears its nodes down on exit.
 
 **Docker Compose** — the containerized cluster ([`deploy/`](deploy)):
 
@@ -323,6 +332,8 @@ make web-check          # frontend gate: install + lint + format:check + test + 
 
 ```bash
 make cluster-smoke      # 3-node failure check: write a key, kill the leader, read it from the new leader (Go + curl only)
+make cluster-local-up   # start a persistent, browsable 3-node cluster with local processes (no docker)
+make cluster-local-down # stop the local cluster
 ```
 
 The project follows an issue-first, branch-based workflow — see
