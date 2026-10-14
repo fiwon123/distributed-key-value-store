@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/fiwon123/distributed-key-value-store/backend/internal/httpapi"
 	"github.com/fiwon123/distributed-key-value-store/backend/internal/kv"
@@ -70,6 +71,62 @@ func TestRaftNodeConfigHasTimings(t *testing.T) {
 	}
 	if cfg.HeartbeatInterval <= 0 {
 		t.Fatalf("heartbeat interval = %v, want > 0", cfg.HeartbeatInterval)
+	}
+}
+
+// TestRaftBackendDeleteReportsMissingKey verifies the handler can answer 404
+// for a missing key: Delete returns false (and proposes nothing) when the key
+// is absent, and true once a key exists.
+func TestRaftBackendDeleteReportsMissingKey(t *testing.T) {
+	store := kv.New()
+	cfg := raft.DefaultConfig()
+	cfg.ID = "node1"
+	cfg.ApplyFunc = func(_ uint64, data []byte) error {
+		cmd, err := kv.DecodeCommand(data)
+		if err != nil {
+			return err
+		}
+		return store.Apply(cmd)
+	}
+	node := raft.NewNode(cfg, nil)
+	node.Start()
+	defer node.Stop()
+	waitForLeader(t, node)
+
+	backend := &raftBackend{store: store, node: node}
+
+	deleted, err := backend.Delete("missing")
+	if err != nil {
+		t.Fatalf("Delete(missing) error = %v, want nil", err)
+	}
+	if deleted {
+		t.Fatalf("Delete(missing) = true, want false (→ 404)")
+	}
+
+	if err := backend.Put("greeting", "hello"); err != nil {
+		t.Fatalf("Put error = %v", err)
+	}
+	deleted, err = backend.Delete("greeting")
+	if err != nil {
+		t.Fatalf("Delete(existing) error = %v, want nil", err)
+	}
+	if !deleted {
+		t.Fatalf("Delete(existing) = false, want true (→ 204)")
+	}
+	if _, ok := store.Get("greeting"); ok {
+		t.Fatalf("key still present after delete")
+	}
+}
+
+// waitForLeader blocks until the single-node quorum elects itself.
+func waitForLeader(t *testing.T, node *raft.Node) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for node.Status().Role != "leader" {
+		if time.Now().After(deadline) {
+			t.Fatalf("node did not become leader within 2s (role=%s)", node.Status().Role)
+		}
+		time.Sleep(5 * time.Millisecond)
 	}
 }
 
