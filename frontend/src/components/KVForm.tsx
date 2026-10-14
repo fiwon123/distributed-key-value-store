@@ -1,25 +1,9 @@
-import { useState } from "react";
-import { deleteKey, getKey, putKey } from "../api";
+import type { KVConsole } from "../hooks/useKVConsole";
 
-type Outcome = { tone: "ok" | "err"; text: string } | undefined;
-
-export function KVForm() {
-  const [key, setKey] = useState("");
-  const [value, setValue] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [outcome, setOutcome] = useState<Outcome>();
-
-  async function run(op: () => Promise<string>) {
-    setBusy(true);
-    setOutcome(undefined);
-    try {
-      setOutcome({ tone: "ok", text: await op() });
-    } catch (err) {
-      setOutcome({ tone: "err", text: err instanceof Error ? err.message : String(err) });
-    } finally {
-      setBusy(false);
-    }
-  }
+// KVForm is presentational: all state and operations live in useKVConsole, so
+// the stored-keys list can drive the same console (see App.tsx).
+export function KVForm({ state }: { state: KVConsole }) {
+  const { key, value, busy, outcome, setKey, setValue, put, get, remove } = state;
 
   return (
     <section className="kv">
@@ -27,10 +11,7 @@ export function KVForm() {
       <form
         onSubmit={(event) => {
           event.preventDefault();
-          void run(async () => {
-            await putKey(key, value);
-            return `PUT ${key}`;
-          });
+          put();
         }}
       >
         <label>
@@ -44,34 +25,32 @@ export function KVForm() {
         </label>
         <label>
           value
-          <input value={value} onChange={(e) => setValue(e.target.value)} placeholder="hello" />
+          <input
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder="hello"
+            required
+          />
         </label>
         <div className="actions">
-          <button type="submit" disabled={busy}>
+          <button type="submit" disabled={busy || key === "" || value === ""}>
             PUT
           </button>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void run(async () => await getKey(key))}
-          >
+          <button type="button" disabled={busy} onClick={get}>
             GET
           </button>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() =>
-              void run(async () => {
-                await deleteKey(key);
-                return `DELETE ${key}`;
-              })
-            }
-          >
+          <button type="button" disabled={busy} onClick={remove}>
             DELETE
           </button>
         </div>
       </form>
-      {outcome && <p className={outcome.tone === "ok" ? "ok" : "error"}>{outcome.text}</p>}
+      <p
+        className={`kv__outcome ${outcome?.tone === "ok" ? "ok" : outcome?.tone === "err" ? "error" : "muted"}`}
+        role="status"
+        aria-live="polite"
+      >
+        {outcome?.text ?? ""}
+      </p>
     </section>
   );
 }

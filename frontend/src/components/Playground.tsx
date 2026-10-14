@@ -139,6 +139,15 @@ export function Playground() {
   return (
     <section className="playground">
       <h2>API playground</h2>
+      <p className="muted playground__intro">
+        Send a request straight through and read the raw response — including Raft's{" "}
+        <code>503</code> + <code>X-Raft-Leader</code> redirect when you target a follower. For the
+        full contract with schemas and try-it-out forms, open the{" "}
+        <a href="/docs" target="_blank" rel="noreferrer">
+          Swagger UI
+        </a>
+        .
+      </p>
       <form
         onSubmit={(event) => {
           event.preventDefault();

@@ -4,12 +4,13 @@ import { KVForm } from "./components/KVForm";
 import { Keys } from "./components/Keys";
 import { NodeCard } from "./components/NodeCard";
 import { Playground } from "./components/Playground";
-import { About } from "./components/About";
+import { Guide } from "./components/Guide";
+import { useKVConsole } from "./hooks/useKVConsole";
 import { useTheme } from "./hooks/useTheme";
 import type { ClusterInfo, Status } from "./types";
 import "./styles.css";
 
-type Tab = "cluster" | "api" | "about";
+type Tab = "cluster" | "api" | "guide";
 
 function statusPath(self: string, id: string): string {
   return id === self ? "/v1/status" : `/node/${encodeURIComponent(id)}/v1/status`;
@@ -63,6 +64,7 @@ export default function App() {
   const [statuses, setStatuses] = useState<Record<string, Status>>({});
   const [statusErrors, setStatusErrors] = useState<Record<string, string>>({});
   const { theme, toggleTheme } = useTheme();
+  const kv = useKVConsole();
 
   useEffect(() => {
     let cancelled = false;
@@ -134,7 +136,7 @@ export default function App() {
         <div className="header-content">
           <div className="logo">
             <img src="/favicon.svg" alt="" width="28" height="28" />
-            <span className="logo__title">distributed key-value store</span>
+            <span className="logo__title">Distributed Key-Value Store</span>
             {cluster && (
               <span className="logo__node muted">
                 local node <strong>{cluster.self}</strong>
@@ -172,11 +174,11 @@ export default function App() {
         </button>
         <button
           type="button"
-          className={tab === "about" ? "tab tab--active" : "tab"}
-          aria-pressed={tab === "about"}
-          onClick={() => setTab("about")}
+          className={tab === "guide" ? "tab tab--active" : "tab"}
+          aria-pressed={tab === "guide"}
+          onClick={() => setTab("guide")}
         >
-          About
+          Guide
         </button>
       </nav>
 
@@ -191,13 +193,21 @@ export default function App() {
               ))}
             </div>
 
-            <KVForm />
-            <Keys />
+            {cluster && cluster.peers.length === 0 && (
+              <p className="hint">
+                Single-node mode — start a 3-node cluster with <code>make cluster-smoke</code>{" "}
+                (local processes) or <code>make cluster-up</code> (Docker) to watch followers and
+                leader failover.
+              </p>
+            )}
+
+            <KVForm state={kv} />
+            <Keys onSelect={kv.select} busy={kv.busy} />
           </>
         ) : tab === "api" ? (
           <Playground />
         ) : (
-          <About />
+          <Guide />
         )}
       </main>
 

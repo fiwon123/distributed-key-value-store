@@ -406,12 +406,40 @@ dd {
   list-style: none;
 }
 
-.key-list li {
+/* Scoped to .key-list so these win over the generic button[type="button"]
+   rule further down (which also zeroes background/border). */
+.key-list button.key-list__item {
   padding: 0.2rem 0.5rem;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--bg-inset);
   font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: inherit;
+}
+
+.key-list button.key-list__item:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  filter: none;
+}
+
+/* Outcome line under the key/value form; always mounted so screen readers
+   announce updates (see KVForm.tsx). */
+.kv__outcome {
+  margin: 0.75rem 0 0;
+  font-size: 0.85rem;
+  min-height: 1.2em;
+}
+
+/* A one-line orientation note shown under the node cards (e.g. single-node). */
+.hint {
+  margin: 0 0 1.5rem;
+  padding: 0.6rem 0.8rem;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-inset);
+  color: var(--text-muted);
   font-size: 0.85rem;
 }
 
@@ -485,6 +513,12 @@ button:disabled {
   padding: 1rem;
 }
 
+.playground__intro {
+  margin: 0 0 0.75rem;
+  font-size: 0.85rem;
+  max-width: 48rem;
+}
+
 .playground__path {
   flex: 1 1 16rem;
 }
@@ -523,29 +557,42 @@ button:disabled {
 }
 
 /* ---------------------------------------------------------------------------
-   About
+   Guide
 --------------------------------------------------------------------------- */
-.about {
+.guide {
   max-width: 46rem;
   margin-inline: auto;
 }
 
-.about h2 {
+.guide h2 {
   margin-top: 0;
 }
 
-.about__lead {
+.guide__lead {
   font-size: 1rem;
   color: var(--text-muted);
 }
 
-.about ol,
-.about ul {
+.guide ol,
+.guide ul {
   padding-left: 1.25rem;
 }
 
-.about li {
+.guide li {
   margin-bottom: 0.5rem;
+}
+
+.guide details {
+  margin: 0.75rem 0;
+}
+
+.guide summary {
+  cursor: pointer;
+  color: var(--text-muted);
+}
+
+.guide details pre {
+  margin-top: 0.5rem;
 }
 
 /* ---------------------------------------------------------------------------
