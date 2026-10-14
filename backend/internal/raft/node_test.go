@@ -3,6 +3,7 @@ package raft
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"sync"
 	"testing"
@@ -351,6 +352,103 @@ func TestLeaderStepsDownOnHigherTermHeartbeatReply(t *testing.T) {
 		snap := n.Status()
 		return snap.Role == "follower" && snap.Term == 7
 	})
+}
+
+// TestMajorityForClusterSizes pins the quorum arithmetic: for N = peers+1
+// nodes the majority is ⌊N/2⌋ + 1. This regresses the old (incorrect)
+// len(peers)/2 + 1, which undercounted by one for even-sized clusters.
+func TestMajorityForClusterSizes(t *testing.T) {
+	tests := []struct {
+		peers int
+		want  int
+	}{
+		{peers: 0, want: 1}, // 1 node — quorum of one
+		{peers: 1, want: 2}, // 2 nodes — both must agree
+		{peers: 2, want: 2}, // 3 nodes
+		{peers: 3, want: 3}, // 4 nodes
+		{peers: 4, want: 3}, // 5 nodes
+		{peers: 5, want: 4}, // 6 nodes
+		{peers: 6, want: 4}, // 7 nodes
+	}
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("%d-nodes", tt.peers+1), func(t *testing.T) {
+			peers := make([]Peer, tt.peers)
+			for i := range peers {
+				peers[i] = Peer{ID: fmt.Sprintf("node%d", i+2)}
+			}
+			n := NewNode(testConfig("node1", peers), &stubTransport{})
+			if got := n.majority(); got != tt.want {
+				t.Fatalf("majority with %d nodes = %d, want %d", tt.peers+1, got, tt.want)
+			}
+			// Quorum intersection: any two majorities overlap, so twice the
+			// quorum must exceed the cluster size.
+			if 2*n.majority() <= tt.peers+1 {
+				t.Fatalf("2×majority(%d) = %d must exceed %d nodes", tt.peers+1, 2*n.majority(), tt.peers+1)
+			}
+		})
+	}
+}
+
+// TestRunElectionTwoNodeNeedsBothVotes guards the even-cluster split brain:
+// with two nodes the quorum is 2, so a candidate whose only peer denies the
+// vote must stay a candidate (the old arithmetic let it win on its own vote).
+func TestRunElectionTwoNodeNeedsBothVotes(t *testing.T) {
+	peers := []Peer{{ID: "node2"}}
+	stub := &stubTransport{
+		vote: func(_ Peer, args RequestVoteArgs) (RequestVoteReply, error) {
+			return RequestVoteReply{Term: args.Term, VoteGranted: false}, nil
+		},
+	}
+	n := NewNode(testConfig("node1", peers), stub)
+
+	n.runElection()
+
+	if snap := n.Status(); snap.Role != "candidate" {
+		t.Fatalf("role = %s, want candidate (2-node quorum is 2)", snap.Role)
+	}
+}
+
+// TestRunElectionTwoNodeWinsWithBothVotes is the positive half of the pair:
+// both nodes agreeing is a majority of a 2-node cluster.
+func TestRunElectionTwoNodeWinsWithBothVotes(t *testing.T) {
+	peers := []Peer{{ID: "node2"}}
+	stub := &stubTransport{
+		vote: func(_ Peer, args RequestVoteArgs) (RequestVoteReply, error) {
+			return RequestVoteReply{Term: args.Term, VoteGranted: true}, nil
+		},
+		appnd: func(_ Peer, _ AppendEntriesArgs) (AppendEntriesReply, error) {
+			return AppendEntriesReply{Term: 1, Success: true}, nil
+		},
+	}
+	n := NewNode(testConfig("node1", peers), stub)
+
+	n.runElection()
+
+	if snap := n.Status(); snap.Role != "leader" {
+		t.Fatalf("role = %s, want leader (both nodes voted)", snap.Role)
+	}
+}
+
+// TestTwoNodeSurvivorCannotElectItselfAlone is the timed, end-to-end shape of
+// the even-cluster bug: a 2-node node whose only peer is unreachable must keep
+// retrying as a candidate, never crown itself leader. The old quorum (1) made
+// its own vote a majority, so it won on the first timeout.
+func TestTwoNodeSurvivorCannotElectItselfAlone(t *testing.T) {
+	n := NewNode(testConfig("node1", []Peer{{ID: "node2"}}), nil)
+	// Route RPCs to nobody: every RequestVote to the peer fails.
+	n.transport = newClusterTransport()
+	n.Start()
+	defer n.Stop()
+
+	// Span several election timeouts; leadership would appear quickly if the
+	// lone vote were treated as a majority.
+	deadline := time.Now().Add(5 * testElectionMax)
+	for time.Now().Before(deadline) {
+		if n.Status().Role == "leader" {
+			t.Fatalf("node became leader with its only peer unreachable (quorum must be 2)")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
 }
 
 func TestSingleNodeBecomesLeader(t *testing.T) {

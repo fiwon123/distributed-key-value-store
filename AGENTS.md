@@ -127,7 +127,9 @@ Go + curl only) and checks the Done-when: write a key, kill the leader, read the
 committed value from the new leader — then tears them down. For a persistent,
 browsable cluster (no docker), use `make cluster-local-up` /
 `cluster-local-status` / `cluster-local-down` (`scripts/cluster-local.sh`): it
-starts three nodes on `127.0.0.1:9081`-`:9083` and leaves them running.
+starts three nodes on `127.0.0.1:9081`-`:9083` and leaves them running. Override
+the size with `NODE_COUNT=<n>` (any `n` ≥ 1) and the base port with
+`BASE_PORT=<port>`.
 `make cluster-up` / `cluster-down` manage
 the containerized cluster in `deploy/docker-compose.yml` (requires docker). The
 docker path cannot be exercised from this environment — no docker socket.

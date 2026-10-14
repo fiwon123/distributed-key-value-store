@@ -182,7 +182,12 @@ make cluster-local-down     # stop
 Three nodes start on `127.0.0.1:9081`-`:9083`, each with the others as peers, so
 every node's dashboard shows all three cards — one leader, two followers. State
 lives under `.cluster/` (gitignored) and each `up` starts fresh; move the port
-base with `BASE_PORT=9081`.
+base with `BASE_PORT=9081`. Start a different number of nodes with `NODE_COUNT`
+(any size ≥ 1; quorum is `⌊N/2⌋ + 1`, so even sizes are safe):
+
+```bash
+make cluster-local-up NODE_COUNT=5   # five nodes on :9081-:9085
+```
 
 **Local processes — the Done-when check** (`scripts/cluster-smoke.sh`, or
 `make cluster-smoke`): starts three nodes, writes a key, kills the leader, waits

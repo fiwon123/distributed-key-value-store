@@ -269,6 +269,62 @@ func TestWritesStopWithoutQuorum(t *testing.T) {
 	}
 }
 
+// TestTwoNodeClusterNeedsBothNodes pins the even-cluster quorum end to end: a
+// 2-node cluster needs both nodes, so with one down a write cannot commit. The
+// old len(peers)/2+1 arithmetic treated the leader's own vote as a majority.
+func TestTwoNodeClusterNeedsBothNodes(t *testing.T) {
+	c := startE2ECluster(t, "n1", "n2")
+	leader := c.leader(t) // both up: exactly one leader is elected
+
+	var follower string
+	for id := range c.nodes {
+		if id != leader.id {
+			follower = id
+		}
+	}
+	c.kill(follower)
+
+	data, err := kv.Command{Op: kv.OpPut, Key: "k", Value: "v"}.Encode()
+	if err != nil {
+		t.Fatalf("encode: %v", err)
+	}
+	if err := leader.propose(data, 400*time.Millisecond); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("Propose with one of two nodes down = %v, want ErrUnavailable", err)
+	}
+}
+
+// TestFourNodeClusterCommitsWithMajority exercises a 4-node cluster to make the
+// even-size quorum concrete: three of four is a majority, two of four is not.
+func TestFourNodeClusterCommitsWithMajority(t *testing.T) {
+	c := startE2ECluster(t, "n1", "n2", "n3", "n4")
+	leader := c.leader(t)
+
+	propose(t, leader, kv.Command{Op: kv.OpPut, Key: "k", Value: "v1"})
+	c.waitForValue(t, "k", "v1")
+
+	var followers []string
+	for id := range c.nodes {
+		if id != leader.id {
+			followers = append(followers, id)
+		}
+	}
+
+	// One failure leaves 3 of 4 nodes — still a majority, so writes continue.
+	c.kill(followers[0])
+	propose(t, leader, kv.Command{Op: kv.OpPut, Key: "k", Value: "v2"})
+	c.waitForValue(t, "k", "v2")
+
+	// A second failure leaves 2 of 4 — no majority, so writes stop.
+	c.kill(followers[1])
+	data, err := kv.Command{Op: kv.OpPut, Key: "k", Value: "v3"}.Encode()
+	if err != nil {
+		t.Fatalf("encode: %v", err)
+	}
+	if err := leader.propose(data, 400*time.Millisecond); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("Propose with 2 of 4 nodes down = %v, want ErrUnavailable", err)
+	}
+}
+
 // TestSnapshotsCompactAndSurviveRestart writes enough through a durable
 // three-node cluster to trigger snapshots on every node, then reopens a node
 // from its data dir and checks the committed state is readable from the
