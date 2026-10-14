@@ -196,19 +196,24 @@ export default function App() {
             </p>
 
             {cluster && cluster.peers.length === 0 && (
-              <div className="callout" role="note">
-                <h3>Why is there only one node?</h3>
-                <p>
-                  This node was started without <code>-peers</code>, so it is a cluster of one and
-                  elected itself leader. Start three nodes and this tab shows them all:
-                </p>
-                <pre>
-                  <code>make cluster-local-up</code>
-                </pre>
-                <p className="muted">
-                  Then open <code>http://127.0.0.1:9081</code> — one leader, two followers.
-                </p>
-              </div>
+              <details className="callout">
+                <summary>
+                  <h3>How to run more nodes?</h3>
+                </summary>
+                <div className="callout__body" role="note">
+                  <p>
+                    This node was started without <code>-peers</code>, so it is a cluster of one and
+                    elected itself leader. Start more nodes and this tab shows them all:
+                  </p>
+                  <pre>
+                    <code>make cluster-local-up</code>
+                  </pre>
+                  <p className="muted">
+                    For a different size, add <code>NODE_COUNT=5</code>. Then open{" "}
+                    <code>http://127.0.0.1:9081</code> — one leader and the rest followers.
+                  </p>
+                </div>
+              </details>
             )}
 
             <div className="nodes">

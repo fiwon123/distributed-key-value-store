@@ -107,7 +107,7 @@ describe("App", () => {
     expect(screen.getByLabelText("value")).toHaveValue("hello");
   });
 
-  it("explains why a single-node cluster shows one card", async () => {
+  it("explains how to run more nodes in a callout that starts collapsed", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo | URL) => {
@@ -118,13 +118,19 @@ describe("App", () => {
         return json({ error: "not found" }, 404);
       }),
     );
+    const user = userEvent.setup();
 
     render(<App />);
 
-    expect(
-      await screen.findByRole("heading", { name: "Why is there only one node?" }),
-    ).toBeInTheDocument();
+    const heading = await screen.findByRole("heading", { name: "How to run more nodes?" });
+    const details = heading.closest("details");
+    expect(details?.open).toBe(false);
+
+    await user.click(heading);
+
+    expect(details?.open).toBe(true);
     expect(screen.getByText("make cluster-local-up")).toBeInTheDocument();
+    expect(screen.getByText(/NODE_COUNT=5/)).toBeInTheDocument();
   });
 
   it("shows the purpose line but hides the single-node callout when peers exist", async () => {
@@ -134,7 +140,7 @@ describe("App", () => {
 
     expect(await screen.findByText(/replicated key-value store/i)).toBeInTheDocument();
     expect(
-      screen.queryByRole("heading", { name: "Why is there only one node?" }),
+      screen.queryByRole("heading", { name: "How to run more nodes?" }),
     ).not.toBeInTheDocument();
   });
 
