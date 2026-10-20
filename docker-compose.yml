@@ -1,15 +1,8 @@
-# Dev sandbox compose file — single `dev` service for local development.
+# Dev sandbox compose file — base stack runs standalone on any OS.
 #
-# - No docker socket (by design): the in-container agent cannot manage containers.
-# - Host GitHub config is mounted read-only; tokens are forwarded at runtime via
-#   `${GH_TOKEN:-}` / `${GITHUB_TOKEN:-}` — never baked into the image.
-# - The Dockerfile creates `devuser` matching HOST_UID/HOST_GID (passed as build
-#   args) so the image has a passwd entry + /home/devuser for the runtime user —
-#   without it the shell greets the user with "I have no name!".
-# - Go module/build caches live under /workspace/.go so the non-root user can
-#   write them (GOPATH/GOCACHE default to root-owned /go).
-# - opencode/gh runtime state goes under /workspace/.xdg-* (writable), while
-#   config stays read-only at .../.config/{opencode,gh}.
+# Host-only mounts (gh/opencode/gitconfig) live in docker-compose.agent.yml
+# and are merged only when a Linux opencode binary exists. The entrypoint is
+# invoked via /bin/bash for Windows bind-mount exec-bit compatibility.
 name: distributed-key-value-store
 
 services:
@@ -23,12 +16,8 @@ services:
     user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    command: ["./scripts/dev-entrypoint.sh"]
+    command: ["/bin/bash", "./scripts/dev-entrypoint.sh"]
     ports:
-      # Host port only; the service listens on 8080 inside the container. Override
-      # HOST_PORT so this sandbox and sibling projects can run at once — two
-      # containers publishing the same host port means the second cannot program
-      # its mapping and can be left with no network attachment, killing DNS.
       - "${HOST_PORT:-8080}:8080"
     environment:
       - GH_TOKEN=${GH_TOKEN:-}
@@ -41,9 +30,5 @@ services:
       - XDG_STATE_HOME=/workspace/.xdg-state
     volumes:
       - .:/workspace:cached
-      - ${HOST_HOME:-${HOME}}/.config/gh:/home/devuser/.config/gh:ro
-      - ${HOST_HOME:-${HOME}}/.opencode/bin/opencode:/usr/local/bin/opencode:ro
-      - ${HOST_HOME:-${HOME}}/.config/opencode:/home/devuser/.config/opencode:ro
-      - ${HOST_HOME:-${HOME}}/.gitconfig:/home/devuser/.gitconfig:ro
     tty: true
     stdin_open: true

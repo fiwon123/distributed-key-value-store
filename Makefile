@@ -12,7 +12,7 @@ WEB_DIR ?= frontend
         web-install web-build web-dev web-lint web-test web-codegen web-check \
         cluster-smoke cluster-up cluster-down cluster-logs \
         cluster-local-up cluster-local-down cluster-local-status \
-        preflight dev-up dev-down dev-restart dev-log dev-build reset \
+        preflight require-agent dev-up dev-down dev-restart dev-log dev-build reset \
         shell opencode opencode-auto dev-shell dev-opencode dev-opencode-auto
 
 # Extra flags for the opencode invocation. `make opencode-auto` /
@@ -127,40 +127,45 @@ run:
 # --- Dev sandbox (docker compose) ----------------------------------------------
 
 preflight: ## Check host prerequisites for the dev sandbox
-	@test -x "$(HOME)/.opencode/bin/opencode" || { echo "ERROR: opencode not found at ~/.opencode/bin/opencode" >&2; exit 1; }
 	@mkdir -p "$(HOME)/.config/opencode" "$(HOME)/.config/gh" && touch "$(HOME)/.gitconfig"
 	@scripts/resolve-gh-token.sh --check >/dev/null 2>&1 || true
 
-dev-up: preflight ## Build and start the dev sandbox
-	@HOST_UID=$$(id -u) HOST_GID=$$(id -g) GH_TOKEN=$$(scripts/resolve-gh-token.sh 2>/dev/null) GITHUB_TOKEN=$$(scripts/resolve-gh-token.sh 2>/dev/null) docker compose up -d --build
+require-agent: ## Require Linux ELF opencode for in-container agent
+	@test -x "$(HOME)/.opencode/bin/opencode" || { echo "ERROR: opencode not found" >&2; exit 1; }
+	@test "$$(head -c4 "$(HOME)/.opencode/bin/opencode" 2>/dev/null | od -An -tx1 | tr -d ' \n')" = "7f454c46" || { echo "ERROR: opencode not ELF" >&2; exit 1; }
 
-dev-restart: preflight ## Restart the dev container (after Dockerfile/deps changes)
-	@docker compose restart dev
+dev-up: preflight ## Build and start the dev sandbox
+	@HOST_UID=$$(id -u) HOST_GID=$$(id -g) GH_TOKEN=$$(scripts/resolve-gh-token.sh 2>/dev/null) GITHUB_TOKEN=$$(scripts/resolve-gh-token.sh 2>/dev/null); \
+	COMPOSE="-f docker-compose.yml"; \
+	if [ -f /var/run/docker.sock ]; then :; fi; \
+	if [ "$$(head -c4 "$(HOME)/.opencode/bin/opencode" 2>/dev/null | od -An -tx1 | tr -d ' \n')" = "7f454c46" ]; then COMPOSE="$$COMPOSE -f docker-compose.agent.yml"; fi; \
+	docker compose $$COMPOSE up -d --build
+
+dev-restart: preflight ## Restart the dev container
+	@docker compose -f docker-compose.yml $$( [ "$$(head -c4 "$(HOME)/.opencode/bin/opencode" 2>/dev/null | od -An -tx1 | tr -d ' \n')" = "7f454c46" ] && echo "-f docker-compose.agent.yml" ) restart dev
 
 dev-down: ## Stop and remove the dev sandbox
-	@docker compose down
+	@docker compose -f docker-compose.yml $$( [ "$$(head -c4 "$(HOME)/.opencode/bin/opencode" 2>/dev/null | od -An -tx1 | tr -d ' \n')" = "7f454c46" ] && echo "-f docker-compose.agent.yml" ) down
 
 dev-log: ## Follow dev container logs
-	@docker compose logs -f dev
+	@docker compose -f docker-compose.yml $$( [ "$$(head -c4 "$(HOME)/.opencode/bin/opencode" 2>/dev/null | od -An -tx1 | tr -d ' \n')" = "7f454c46" ] && echo "-f docker-compose.agent.yml" ) logs -f dev
 
 dev-build: preflight ## Rebuild the dev image without starting
-	@docker compose build
+	@docker compose -f docker-compose.yml $$( [ "$$(head -c4 "$(HOME)/.opencode/bin/opencode" 2>/dev/null | od -An -tx1 | tr -d ' \n')" = "7f454c46" ] && echo "-f docker-compose.agent.yml" ) build
 
 reset: ## Stop dev sandbox and remove volumes
-	@docker compose down -v
+	@docker compose -f docker-compose.yml $$( [ "$$(head -c4 "$(HOME)/.opencode/bin/opencode" 2>/dev/null | od -An -tx1 | tr -d ' \n')" = "7f454c46" ] && echo "-f docker-compose.agent.yml" ) down -v
 
 shell: dev-shell ## Alias for dev-shell
-opencode: dev-opencode ## Alias for dev-opencode (run opencode inside the sandbox)
-opencode-auto: dev-opencode-auto ## Alias for dev-opencode-auto (run opencode with --auto)
+opencode: dev-opencode ## Alias for dev-opencode
+opencode-auto: dev-opencode-auto ## Alias for dev-opencode-auto
 
 dev-shell: preflight ## Open a shell in the dev container
-	@docker compose exec dev bash || docker compose run --rm dev bash
+	@docker compose -f docker-compose.yml $$( [ "$$(head -c4 "$(HOME)/.opencode/bin/opencode" 2>/dev/null | od -An -tx1 | tr -d ' \n')" = "7f454c46" ] && echo "-f docker-compose.agent.yml" ) exec dev bash || docker compose -f docker-compose.yml $$( [ "$$(head -c4 "$(HOME)/.opencode/bin/opencode" 2>/dev/null | od -An -tx1 | tr -d ' \n')" = "7f454c46" ] && echo "-f docker-compose.agent.yml" ) run --rm dev bash
 
-dev-opencode: preflight ## Run opencode inside the dev sandbox
-	@if [ -z "$$(docker compose ps -q dev 2>/dev/null)" ]; then echo "[opencode] starting dev stack..."; HOST_UID=$$(id -u) HOST_GID=$$(id -g) GH_TOKEN=$$(scripts/resolve-gh-token.sh 2>/dev/null) GITHUB_TOKEN=$$(scripts/resolve-gh-token.sh 2>/dev/null) docker compose up -d dev; fi
-	@if [ -t 0 ]; then docker compose exec -it dev zsh -lc "cd /workspace && opencode $(OPENCODE_ARGS)" || docker compose exec -it dev bash -lc "opencode $(OPENCODE_ARGS)"; else docker compose exec -T dev zsh -lc "cd /workspace && opencode $(OPENCODE_ARGS)" || docker compose exec -T dev bash -lc "opencode $(OPENCODE_ARGS)"; fi
+dev-opencode: preflight require-agent ## Run opencode inside the dev sandbox
+	@COMPOSE="-f docker-compose.yml -f docker-compose.agent.yml"; if [ -z "$$(docker compose $$COMPOSE ps -q dev 2>/dev/null)" ]; then echo "[opencode] starting dev stack..."; HOST_UID=$$(id -u) HOST_GID=$$(id -g) GH_TOKEN=$$(scripts/resolve-gh-token.sh 2>/dev/null) GITHUB_TOKEN=$$(scripts/resolve-gh-token.sh 2>/dev/null) docker compose $$COMPOSE up -d dev; fi
+	@if [ -t 0 ]; then docker compose $$COMPOSE exec -it dev bash -lc "cd /workspace && opencode $(OPENCODE_ARGS)" || docker compose $$COMPOSE exec -it dev zsh -lc "cd /workspace && opencode $(OPENCODE_ARGS)"; else docker compose $$COMPOSE exec -T dev bash -lc "cd /workspace && opencode $(OPENCODE_ARGS)" || docker compose $$COMPOSE exec -T dev zsh -lc "cd /workspace && opencode $(OPENCODE_ARGS)"; fi
 
-# Same recipe, with --auto: auto-approve permissions that are not explicitly
-# denied (every secret-file deny rule still applies).
 dev-opencode-auto: OPENCODE_ARGS = --auto
 dev-opencode-auto: dev-opencode ## Run opencode inside the dev sandbox with --auto
