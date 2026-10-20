@@ -404,9 +404,24 @@ end to end.
 
 ## Development
 
+### OS matrix (dev sandbox)
+
+The dev sandbox (`docker compose up`) runs with no host-only mounts in the
+base file on any OS. Host-specific bits (gh/opencode/gitconfig) are merged
+only when a Linux ELF opencode binary exists.
+
+| Platform | `docker compose up` / `make dev-up` | In-container agent (opencode) | Notes |
+|---|---|---|---|
+| Linux | Yes | Yes (Linux binary) | Full support |
+| macOS (Docker Desktop) | Yes | Host opencode only (Mach-O can't run in Linux) | `python scripts/dev-up.py dev-up` or `make dev-up` |
+| WSL2 (Docker Desktop integration) | Yes | Yes (install inside the distro) | Full support |
+| Native Windows (Docker Desktop) | Yes | Host opencode only (PE can't run in Linux) | Use `python scripts/dev-up.py dev-up` or `.\scripts\dev-up.ps1 dev-up`; see Troubleshooting for CRLF |
+
 The Docker Compose **dev sandbox** gives you the full toolchain (Go, Node,
 `gh`, `air` fast reload) with your host GitHub config mounted read-only and
 `GH_TOKEN`/`GITHUB_TOKEN` forwarded at runtime — never baked into the image.
+`dev-up` does **not** require opencode; only `make opencode` / `make shell`
+require a Linux ELF binary.
 
 Copy the committed template to configure the sandbox (`.env` stays gitignored):
 
@@ -415,10 +430,11 @@ cp .env.example .env   # optional: HOST_PORT, HOST_HOME, GH_TOKEN/GITHUB_TOKEN, 
 ```
 
 ```bash
-make dev-up        # build + start the sandbox (needs docker on the host)
+make dev-up        # build + start the sandbox (Linux/macOS/WSL2)
+python scripts/dev-up.py dev-up  # native Windows
 make dev-restart   # restart after Dockerfile/deps changes
 make shell         # shell inside the sandbox
-make opencode      # run opencode inside the sandbox
+make opencode      # run opencode inside the sandbox (Linux binary required)
 make dev-down      # stop and remove the sandbox
 make dev-log       # follow container logs
 ```
